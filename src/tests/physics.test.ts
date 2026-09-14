@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { current, recalc } from "../presets";
-import { flight, simulate, segmentBox, shooterPose } from "../physics/flight";
+import {
+  flight,
+  simulate,
+  segmentBox,
+  shooterPose,
+  targetOpeningClearance,
+} from "../physics/flight";
 import { aerodynamicForces } from "../physics/aerodynamics";
 import { simulateShooter } from "../physics/shooter";
 import { norm, sub } from "../physics/math";
@@ -77,6 +83,7 @@ describe("independent numerical physics", () => {
   it("detects eroded opening and records downward entry", () => {
     const c = config();
     c.field.target.center = [0, 0, 1];
+    c.field.target.tilt = 0;
     const f = flight([0, 0, 2], [0, 0, -1], [0, 0, 0], c);
     expect(f.status).toBe("HIT");
     expect(f.entry!.clearance).toBeGreaterThan(0);
@@ -85,6 +92,7 @@ describe("independent numerical physics", () => {
   it("clips a ball grazing the opening edge", () => {
     const c = config();
     c.field.target.center = [0, 0, 1];
+    c.field.target.tilt = 0;
     const f = flight(
       [c.field.target.width / 2 - 0.01, 0, 2],
       [0, 0, -1],
@@ -92,6 +100,21 @@ describe("independent numerical physics", () => {
       c,
     );
     expect(f.status).toBe("CLIPPED EDGE");
+  });
+  it("uses the published pentagonal CELL roof rather than a rectangle", () => {
+    const t = config().field.target;
+    expect(
+      targetOpeningClearance(t, [0, t.height / 2 - 0.02], 0),
+    ).toBeGreaterThan(0);
+    expect(
+      targetOpeningClearance(t, [t.width / 2 - 0.01, t.height / 2 - 0.02], 0),
+    ).toBeLessThan(0);
+  });
+  it("places the active CELL on the centered blue HIVE at the published height", () => {
+    const f = config().field;
+    expect(f.target.center[0]).toBeCloseTo(f.hive.allianceCenterSpacing / 2, 8);
+    expect(f.target.center[2]).toBeCloseTo(1.51257, 4);
+    expect(f.target.tilt).toBeCloseTo(-Math.PI / 3, 10);
   });
   it("converges under halved maximum step", () => {
     const c = config();

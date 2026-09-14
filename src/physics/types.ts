@@ -94,11 +94,30 @@ export interface TargetConfig {
   center: Vec3;
   width: number;
   height: number;
+  /** Vertical distance from the opening floor to the start of the two roof slopes. */
+  shoulderHeight: number;
   depth: number;
   yaw: number;
   tilt: number;
   thickness: number;
   /** tilt=0: upward opening; tilt=pi/2: vertical */ provenance: string;
+}
+export interface HiveConfig {
+  frameWidth: number;
+  frameDepth: number;
+  pivotHeight: number;
+  allianceCenterSpacing: number;
+  cellGap: number;
+  assemblySpan: number;
+  cellWidth: number;
+  cellHeight: number;
+  cellShoulderHeight: number;
+  cellDepth: number;
+  deployedCellPlaneAngle: number;
+  topOpeningHeight: number;
+  bottomOpeningHeight: number;
+  bottomHeight: number;
+  provenance: string;
 }
 export interface Box {
   min: Vec3;
@@ -110,6 +129,7 @@ export interface FieldConfig {
   wallHeight: number;
   wallThickness: number;
   target: TargetConfig;
+  hive: HiveConfig;
   obstacles: Box[];
   provenance: string;
 }

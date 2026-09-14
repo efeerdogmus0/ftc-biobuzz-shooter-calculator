@@ -46,14 +46,14 @@ Production output is `dist/`. Serve it with any static HTTP server. Workers requ
 
 ## Field scope
 
-The official [BIOBUZZ ARENA V1](https://ftc-resources.firstinspires.org/ftc/game/manual-09) and [field resources](https://ftc-resources.firstinspires.org/ftc/archive/2027/field) were consulted on 2026-09-13. The nominal field and CELL opening dimensions are sourced. **The shipped single static CELL is an editable engineering fixture, not the full official tipping HIVE assembly.** Its pose and simplified solids are explicitly unverified. User-requested 3 in / 25 g POLLEN values are preserved despite the manual's differing nominal diameter.
+The official [BIOBUZZ ARENA V1](https://ftc-resources.firstinspires.org/ftc/game/manual-09) and [field resources](https://ftc-resources.firstinspires.org/ftc/archive/2027/field) were consulted on 2026-09-14. The centered HIVE frame, red/blue HIVE spacing, four pentagonal CELLS, published 30° deployed pose, pivot height and active blue CELL are modeled from Section 9 Figures 9-7–9-11. The official CAD remains the fabrication authority. User-requested 3 in / 25 g POLLEN values are preserved despite the manual's differing nominal diameter.
 
-A HIT records inward entry of the entire ball through the opening before a solid collision. It does not certify retention or official scoring. Full field CAD, moving HIVE tipping, bounce/retention, sequential spatial roller contact and resolved soft-body deformation remain outside this implementation. GLB import is visual only; add collision boxes explicitly.
+A HIT records inward entry of the entire ball through the active pentagonal blue opening before a solid collision. It does not certify retention or official scoring. Moving HIVE tipping, bounce/retention, sequential spatial roller contact and resolved soft-body deformation remain outside this implementation. GLB import is visual only; add collision boxes explicitly.
 
 ## Architecture
 
 - `src/physics`: pure SI contact, flight, aerodynamics, integration, target collision, solver, calibration and Monte Carlo functions; independent of React and Three.js.
-- `src/field/fieldConfig.ts`: geometry with provenance.
+- `src/field/fieldConfig.ts`: official V1 field geometry with provenance, including the centered deployed HIVE fixture.
 - `src/presets`: current robot/projectile and exact ReCalc input values.
 - `src/workers`: heavy analysis; cancellation terminates worker immediately.
 - `src/state`: serializable design configuration and UI state.

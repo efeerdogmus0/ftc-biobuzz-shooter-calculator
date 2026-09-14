@@ -724,8 +724,9 @@ export function FieldControls() {
   return (
     <>
       <div className="notice">
-        Configurable static HIVE test cell. Official opening dimensions; pose
-        and simplified walls require CAD verification. No tipping / retention
+        Competition HIVE is centered on the FIELD in the published deployed 30°
+        position. The blue upward CELL is the active scoring volume; its
+        pentagonal opening is used for entry checks. No tipping / retention
         model.
       </div>
       <Section title="Field & scoring volume" open>
@@ -782,12 +783,14 @@ export function FieldControls() {
           kind="angle"
         />
         <N
-          label="Opening tilt from upward"
+          label="Opening-normal tilt from upward"
           path="field.target.tilt"
-          max={Math.PI / 2}
+          min={-Math.PI}
+          max={Math.PI}
           kind="angle"
         />
         <p className="muted">{c.field.target.provenance}</p>
+        <p className="muted">{c.field.hive.provenance}</p>
         <a
           href="https://ftc-resources.firstinspires.org/ftc/game/manual-09"
           target="_blank"

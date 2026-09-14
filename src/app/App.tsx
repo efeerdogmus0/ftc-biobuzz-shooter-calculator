@@ -277,7 +277,7 @@ export default function App() {
             </div>
             <div className="view-footer">
               <span>XY floor · Z up · 1 scene unit = 1 m</span>
-              <span>STATIC CELL FIXTURE · CAD POSE UNVERIFIED</span>
+              <span>COMPETITION HIVE · DEPLOYED 30° · BLUE ACTIVE CELL</span>
             </div>
             <div className="shot-controls">
               <button className="primary" onClick={() => s.fire(shot)}>

@@ -19,13 +19,14 @@ import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { useStore } from "../state/store";
 import type { Shot, Vec3 } from "../physics/types";
 import {
-  targetBoxes,
   targetBasis,
+  targetOpeningPoints,
   targetWorld,
   shooterPose,
   sampleAt,
   aim,
 } from "../physics/flight";
+import { hiveCellTarget, hiveCells } from "../field/hiveGeometry";
 import { scale, add, norm } from "../physics/math";
 import { aerodynamicForces } from "../physics/aerodynamics";
 const floorPlane = new Plane(new Vector3(0, 0, 1), 0);
@@ -258,67 +259,134 @@ function Robot() {
     </>
   );
 }
-function Target() {
-  const t = useStore((s) => s.config.field.target),
-    overlays = useStore((s) => s.overlays);
+function targetQuaternion(
+  t: ReturnType<typeof useStore.getState>["config"]["field"]["target"],
+) {
+  const { u, v, n } = targetBasis(t);
+  return new Quaternion().setFromRotationMatrix(
+    new Matrix4().makeBasis(
+      new Vector3(...u),
+      new Vector3(...v),
+      new Vector3(...n),
+    ),
+  );
+}
+function Cell({
+  target,
+  color,
+  active,
+}: {
+  target: ReturnType<typeof useStore.getState>["config"]["field"]["target"];
+  color: string;
+  active: boolean;
+}) {
+  const overlays = useStore((s) => s.overlays);
   const quaternion = useMemo(() => {
-    const { u, v, n } = targetBasis(t);
-    return new Quaternion().setFromRotationMatrix(
-      new Matrix4().makeBasis(
-        new Vector3(...u),
-        new Vector3(...v),
-        new Vector3(...n),
-      ),
-    );
-  }, [t]);
+    return targetQuaternion(target);
+  }, [target]);
+  const outline = useMemo(() => targetOpeningPoints(target), [target]);
+  return (
+    <group position={target.center} quaternion={quaternion}>
+      <Line points={outline} color={color} lineWidth={active ? 3 : 2} />
+      <Line
+        points={outline.map(([x, y]) => [x, y, -target.depth] as Vec3)}
+        color={color}
+        lineWidth={1}
+      />
+      {outline.slice(0, -1).map((point, i) => (
+        <Line
+          key={i}
+          points={[point, [point[0], point[1], -target.depth]]}
+          color={color}
+          lineWidth={1}
+        />
+      ))}
+      {overlays.target && active && (
+        <mesh position={[0, 0, -target.depth / 2]}>
+          <boxGeometry args={[target.width, target.height, target.depth]} />
+          <meshBasicMaterial
+            color={color}
+            transparent
+            opacity={0.07}
+            depthWrite={false}
+          />
+        </mesh>
+      )}
+    </group>
+  );
+}
+function Target() {
+  const field = useStore((s) => s.config.field);
+  const h = field.hive;
+  const cells = useMemo(() => hiveCells(field), [field]);
+  const frameX = h.frameWidth / 2;
+  const frameY = h.frameDepth / 2;
+  const pivot = h.pivotHeight;
   return (
     <>
-      <group position={t.center} quaternion={quaternion}>
-        {targetBoxes(t).map((b, i) => (
-          <mesh
-            key={b.name}
-            position={b.min.map((x, j) => (x + b.max[j]) / 2) as Vec3}
-          >
-            <boxGeometry args={b.min.map((x, j) => b.max[j] - x) as Vec3} />
-            <meshStandardMaterial
-              color={i === 4 ? "#563e32" : "#c17951"}
-              metalness={0.25}
-              roughness={0.65}
-              transparent
-              opacity={overlays.collisions ? 0.35 : 0.92}
-              wireframe={overlays.collisions}
+      <group>
+        {[-frameX, frameX].map((x) => (
+          <group key={x}>
+            <Line
+              points={[
+                [x, -frameY, 0.02],
+                [x, 0, pivot],
+                [x, frameY, 0.02],
+              ]}
+              color="#7b8588"
+              lineWidth={3}
             />
-          </mesh>
+            <Line
+              points={[
+                [x, -frameY, 0.02],
+                [x, frameY, 0.02],
+              ]}
+              color="#657075"
+              lineWidth={2}
+            />
+          </group>
         ))}
-        {overlays.target && (
-          <mesh position={[0, 0, -t.depth / 2]}>
-            <boxGeometry args={[t.width, t.height, t.depth]} />
-            <meshBasicMaterial
-              color="#e9b975"
-              transparent
-              opacity={0.08}
-              depthWrite={false}
-            />
-          </mesh>
-        )}
         <Line
           points={[
-            [-t.width / 2, -t.height / 2, 0.002],
-            [t.width / 2, -t.height / 2, 0.002],
-            [t.width / 2, t.height / 2, 0.002],
-            [-t.width / 2, t.height / 2, 0.002],
-            [-t.width / 2, -t.height / 2, 0.002],
+            [-frameX, 0, pivot],
+            [frameX, 0, pivot],
           ]}
-          color="#f6cf8d"
+          color="#9ca8ab"
+          lineWidth={3}
+        />
+        <Line
+          points={[
+            [-frameX, -frameY, 0.02],
+            [frameX, -frameY, 0.02],
+            [frameX, frameY, 0.02],
+            [-frameX, frameY, 0.02],
+            [-frameX, -frameY, 0.02],
+          ]}
+          color="#657075"
           lineWidth={2}
         />
       </group>
+      {cells.map((cell) => {
+        const target = hiveCellTarget(cell, field);
+        const color = cell.alliance === "BLUE" ? "#3d8df5" : "#eb5d58";
+        return (
+          <Cell
+            key={cell.id}
+            target={target}
+            color={color}
+            active={cell.active}
+          />
+        );
+      })}
+      <Html position={[0, 0, pivot + 0.16]} center className="scene-label">
+        COMPETITION <span>HIVE · DEPLOYED 30°</span>
+      </Html>
       <Html
-        position={targetWorld([0, 0, 0.1], t)}
+        position={targetWorld([0, 0, 0.08], field.target)}
         center
         className="scene-label"
       >
-        HIVE <span>TEST CELL</span>
+        BLUE <span>ACTIVE CELL</span>
       </Html>
     </>
   );

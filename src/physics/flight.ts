@@ -38,6 +38,42 @@ export function targetWorld(p: Vec3, t: TargetConfig): Vec3 {
     add(scale(u, p[0]), add(scale(v, p[1]), scale(n, p[2]))),
   );
 }
+/** The CELL opening is a pentagon: vertical sides rise to shoulders, then slope to the peak. */
+export function targetOpeningTop(t: TargetConfig, localX: number) {
+  const half = t.width / 2;
+  if (Math.abs(localX) > half) return -Infinity;
+  const shoulder = t.shoulderHeight - t.height / 2;
+  const peak = t.height / 2;
+  return shoulder + ((peak - shoulder) * (half - Math.abs(localX))) / half;
+}
+export function targetOpeningClearance(
+  t: TargetConfig,
+  local: readonly [number, number] | Vec3,
+  radius: number,
+) {
+  const bottom = -t.height / 2;
+  return (
+    Math.min(
+      t.width / 2 - Math.abs(local[0]),
+      local[1] - bottom,
+      targetOpeningTop(t, local[0]) - local[1],
+    ) - radius
+  );
+}
+export function targetOpeningPoints(t: TargetConfig): Vec3[] {
+  const half = t.width / 2;
+  const bottom = -t.height / 2;
+  const shoulder = t.shoulderHeight - t.height / 2;
+  const peak = t.height / 2;
+  return [
+    [-half, bottom, 0],
+    [half, bottom, 0],
+    [half, shoulder, 0],
+    [0, peak, 0],
+    [-half, shoulder, 0],
+    [-half, bottom, 0],
+  ];
+}
 /** Same solids drive rendering and collision. CELL is an open box, extending behind its opening. */
 export function targetBoxes(t: TargetConfig): Box[] {
   const w = t.width / 2,
@@ -241,15 +277,8 @@ export function flight(
       if (la[2] > 0 && lb[2] <= 0 && !entry) {
         const hit = root(a, b, (s) => targetLocal(s.p, target)[2]),
           local = targetLocal(hit.p, target);
-        missDistance = Math.hypot(
-          Math.max(0, Math.abs(local[0]) - target.width / 2 + r),
-          Math.max(0, Math.abs(local[1]) - target.height / 2 + r),
-        );
-        const clearance =
-          Math.min(
-            target.width / 2 - Math.abs(local[0]),
-            target.height / 2 - Math.abs(local[1]),
-          ) - r;
+        const clearance = targetOpeningClearance(target, local, r);
+        missDistance = Math.max(0, -clearance);
         if ((!terminal || hit.t <= terminal.t) && clearance >= 0) {
           const speed = norm(hit.v);
           entry = {

@@ -45,7 +45,7 @@ Zero/near-zero direction vectors normalize to zero; this also prevents floating-
 
 Dormand–Prince embedded RK5(4), per-component absolute+relative tolerances, adaptive step control. Default absolute 1e-8 SI, relative 1e-7, maximum step 0.008 s. Accepted samples carry position, velocity and spin. Cubic Hermite dense position/velocity with bisection locates apex, floor and inward opening-plane events. Sphere-box CCD uses Minkowski-expanded box slabs between accepted points; this is conservative at corners. Chords approximate curvature, so reduce maxStep for strong forces; 8 ms gravity-only sag is about 0.08 mm.
 
-The scoring opening is a local oriented rectangle with depth, solid side walls and back/bottom. Whole-ball entry erodes each half-width by projectile radius. The same target boxes are rendered and collided. Arbitrary profile obstacle AABBs and perimeter walls are checked continuously. HIT is entry before contact; the ball then stops at its first solid collision. No restitution, bounce or retention is claimed. If no opening-plane crossing exists, miss distance is closest sampled distance to center, rather than opening clearance.
+The scoring opening is the active blue CELL: a local oriented pentagon with a 20 in width, 14 in total height, 7.61 in shoulders and 12.04 in depth. Whole-ball entry erodes its sides, floor and sloped roof by projectile radius. Side walls, back/bottom, arbitrary profile obstacle AABBs and perimeter walls are checked continuously. HIT is entry before contact; the ball then stops at its first solid collision. No restitution, bounce or retention is claimed. If no opening-plane crossing exists, miss distance is closest sampled distance to center, rather than opening clearance.
 
 ## Electrical/recovery model
 
