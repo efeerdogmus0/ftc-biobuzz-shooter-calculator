@@ -25,6 +25,9 @@ export function useAnalysis() {
     [measurements, setMeasurements] = useState<Measurement[]>([]),
     [parameters, setParameters] = useState<FitParameter[]>([]);
   const [resultConfig, setResultConfig] = useState("");
+  const [candidateConfig, setCandidateConfig] = useState("");
+  const [mcConfig, setMCConfig] = useState("");
+  const [fitConfig, setFitConfig] = useState("");
   useEffect(() => () => worker.current?.terminate(), []);
   const cancel = () => {
     worker.current?.terminate();
@@ -38,11 +41,12 @@ export function useAnalysis() {
     setProgress(0);
     const config = structuredClone(useStore.getState().config),
       stamp = JSON.stringify(config);
-    worker.current = new Worker(
+    const job = new Worker(
       new URL("../workers/analysis.worker.ts", import.meta.url),
       { type: "module" },
     );
-    worker.current.onmessage = (
+    worker.current = job;
+    job.onmessage = (
       e: MessageEvent<{
         type: string;
         value: number;
@@ -51,6 +55,7 @@ export function useAnalysis() {
         result: unknown;
       }>,
     ) => {
+      if (worker.current !== job) return;
       const d = e.data;
       if (d.type === "progress") setProgress(d.value);
       else if (d.type === "error") {
@@ -58,25 +63,43 @@ export function useAnalysis() {
         cancel();
       } else {
         setResultConfig(stamp);
-        if (kind === "solve") setCandidates(d.result as Candidate[]);
-        if (kind === "coverage")
-          useStore
-            .getState()
-            .set({
-              coverage: d.result as CoverageCell[],
-              heatSpacing: spacing,
-            });
-        if (kind === "monteCarlo") setMC(d.result as MonteCarlo);
-        if (kind === "calibrate") setFit(d.result as CalibrationResult);
+        if (kind === "solve") {
+          setCandidates(d.result as Candidate[]);
+          setCandidateConfig(stamp);
+        }
+        if (
+          kind === "coverage" &&
+          JSON.stringify(useStore.getState().config) === stamp
+        )
+          useStore.getState().set({
+            coverage: d.result as CoverageCell[],
+            heatSpacing: spacing,
+          });
+        if (
+          kind === "coverage" &&
+          JSON.stringify(useStore.getState().config) !== stamp
+        )
+          setError(
+            "Coverage finished for an earlier configuration. Run again to display a matching heatmap.",
+          );
+        if (kind === "monteCarlo") {
+          setMC(d.result as MonteCarlo);
+          setMCConfig(stamp);
+        }
+        if (kind === "calibrate") {
+          setFit(d.result as CalibrationResult);
+          setFitConfig(stamp);
+        }
         setProgress(1);
         cancel();
       }
     };
-    worker.current.onerror = (e) => {
+    job.onerror = (e) => {
+      if (worker.current !== job) return;
       setError(e.message);
       cancel();
     };
-    worker.current.postMessage({
+    job.postMessage({
       kind,
       config,
       spacing,
@@ -107,6 +130,9 @@ export function useAnalysis() {
     parameters,
     setParameters,
     resultConfig,
+    candidateConfig,
+    mcConfig,
+    fitConfig,
     run,
     cancel,
   };

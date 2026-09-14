@@ -122,3 +122,59 @@ describe("ReCalc empirical reference regression", () => {
     expect(s.recovery).toBeNull();
   });
 });
+
+it("near-zero spin cancellation cannot produce NaN lift", () => {
+  const c = structuredClone(current);
+  const f = aerodynamicForces([3, 1, 2], [0, 1e-320, 0], c);
+  expect([...f.drag, ...f.lift]).toEqual(
+    expect.arrayContaining([expect.any(Number)]),
+  );
+  expect([...f.drag, ...f.lift].every(Number.isFinite)).toBe(true);
+});
+it("zero Coulomb friction cannot accelerate the projectile", () => {
+  const c = structuredClone(current);
+  c.shooter.friction = 0;
+  const s = simulateShooter(c);
+  expect(s.speed).toBe(c.projectile.initialVelocity);
+  expect(s.spin).toBe(c.projectile.spin);
+});
+it("finite measured wheel inertia produces droop", () => {
+  const c = structuredClone(current);
+  for (const w of [c.shooter.primary, c.shooter.secondary]) {
+    w.inertiaMode = "custom";
+    w.inertia = 0.0001;
+  }
+  const s = simulateShooter(c);
+  expect(s.drop).toBeGreaterThan(0);
+  expect(s.storedEnergy).toBeGreaterThan(s.energy + s.rotationalEnergy);
+  expect(s.slipLoss).toBeGreaterThanOrEqual(0);
+});
+
+it("gear-linked contact preserves shaft ratios while reflecting wheel inertia", () => {
+  const c = structuredClone(current);
+  c.shooter.link = "gear";
+  c.shooter.secondary.ratio = 4.5;
+  c.shooter.primary.inertiaMode = "custom";
+  c.shooter.primary.inertia = 0.00015;
+  c.shooter.secondary.inertiaMode = "custom";
+  c.shooter.secondary.inertia = 0.000002;
+  const s = simulateShooter(c);
+  expect(s.drop).toBeGreaterThan(0);
+  for (const row of s.trace)
+    expect(row.secondaryOmega / row.primaryOmega).toBeCloseTo(4.5, 10);
+  expect(Math.abs(s.spin)).toBeLessThan(0.05);
+});
+it("unknown coupled inertia suppresses false recovery and energy predictions", () => {
+  const c = structuredClone(current);
+  c.shooter.link = "gear";
+  c.shooter.primary.inertiaMode = "custom";
+  c.shooter.primary.inertia = 0.0002;
+  const s = simulateShooter(c);
+  expect(s.recovery).toBeNull();
+  expect(s.storedEnergy).toBeNull();
+});
+it("rejects a launch that already overlaps the floor", () => {
+  const f = flight([0, 0, 0.001], [3, 0, 4], [0, 0, 0], current);
+  expect(f.impact?.t).toBe(0);
+  expect(f.status).toBe("COLLIDED BEFORE ENTRY");
+});

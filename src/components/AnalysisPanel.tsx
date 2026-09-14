@@ -14,7 +14,7 @@ import { downloadJSON } from "../utils/config";
 export function AnalysisPanel({ a }: { a: AnalysisState }) {
   const s = useStore(),
     c = s.config;
-  const [data, setData] = useState("[]"),
+  const [data, setData] = useState(JSON.stringify(a.measurements, null, 2)),
     [dataError, setDataError] = useState("");
   const stale = a.resultConfig && a.resultConfig !== JSON.stringify(c);
   const prepare = (
@@ -132,7 +132,9 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
             className="candidate"
             key={i}
             onClick={() => {
-              const q = aim(c);
+              const q = aim(
+                a.candidateConfig ? JSON.parse(a.candidateConfig) : c,
+              );
               q.shooter.hoodAngle = x.angle;
               q.shooter.primary.omega = x.omega;
               s.setConfig(q);
@@ -147,6 +149,9 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
               {x.time.toFixed(2)} s<br />
               {(x.clearance * 1000).toFixed(0)} mm clearance ·{" "}
               {toDeg(x.entryAngle).toFixed(1)}° entry
+              <br />
+              {toDeg(x.hoodMargin).toFixed(1)}° hood margin ·{" "}
+              {toRPM(x.rpmMargin).toFixed(0)} RPM margin
             </small>
           </button>
         ))}
@@ -286,8 +291,16 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
             </p>
             <Scatter
               points={a.mc.entries}
-              width={c.field.target.width}
-              height={c.field.target.height}
+              width={
+                a.mcConfig
+                  ? JSON.parse(a.mcConfig).field.target.width
+                  : c.field.target.width
+              }
+              height={
+                a.mcConfig
+                  ? JSON.parse(a.mcConfig).field.target.height
+                  : c.field.target.height
+              }
               ellipses={a.mc.ellipses}
             />
             <p className="muted">
@@ -296,8 +309,12 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
             </p>
             <Scatter
               points={a.mc.landings}
-              width={c.field.size}
-              height={c.field.size}
+              width={
+                a.mcConfig ? JSON.parse(a.mcConfig).field.size : c.field.size
+              }
+              height={
+                a.mcConfig ? JSON.parse(a.mcConfig).field.size : c.field.size
+              }
             />
             <p className="muted">
               Floor impacts only; wall / CELL collisions excluded.
@@ -427,7 +444,10 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
             ))}
             <button
               onClick={() => {
-                const q = applyParameters(c, a.fit!.parameters);
+                const q = applyParameters(
+                  a.fitConfig ? JSON.parse(a.fitConfig) : c,
+                  a.fit!.parameters,
+                );
                 q.calibrated = a.fit!.validationCount > 0;
                 s.setConfig(q);
               }}

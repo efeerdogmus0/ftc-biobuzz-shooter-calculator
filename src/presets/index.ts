@@ -33,8 +33,8 @@ export const current: Config = {
   shooter: {
     mode: "physical",
     topology: "powered",
-    primary: wheel(0.072, rpm(2300)),
-    secondary: wheel(0.016, rpm(10350)),
+    primary: wheel(0.072, rpm(1450)),
+    secondary: wheel(0.016, rpm(6525)),
     rollers: [],
     link: "surface",
     surfaceRatio: 1,

@@ -5,7 +5,7 @@ import { aim } from "../physics/flight";
 import type { Shot, WheelConfig } from "../physics/types";
 import { toDeg, toRPM } from "../utils/units";
 import { wheelInertia } from "../physics/shooter";
-import { getPath } from "../utils/config";
+import { getPath, parseConfig } from "../utils/config";
 export function RobotControls() {
   const s = useStore();
   return (
@@ -222,7 +222,11 @@ export function ShooterControls({ shot }: { shot: Shot }) {
       )}
       <div className="separator" />
       <N
-        label="Hood launch angle"
+        label={
+          c.shooter.hoodOffset === 0
+            ? "Hood launch angle"
+            : "Mechanical hood setting"
+        }
         path="shooter.hoodAngle"
         kind="angle"
         min={c.shooter.hoodMin}
@@ -793,6 +797,25 @@ export function FieldControls() {
         </a>
       </Section>
       <Section title="Debug overlays" open>
+        <label className="select-control">
+          Trajectory color
+          <select
+            aria-label="Trajectory color"
+            value={s.trajectoryColor}
+            onChange={(e) =>
+              s.set({
+                trajectoryColor: e.target.value as typeof s.trajectoryColor,
+              })
+            }
+          >
+            <option value="status">Entry status</option>
+            <option value="speed">Speed · cool to warm</option>
+            <option value="time">Flight time · cool to warm</option>
+            <option value="vertical">
+              Vertical velocity · descending to rising
+            </option>
+          </select>
+        </label>
         {Object.entries(s.overlays).map(([key, v]) => (
           <Toggle
             key={key}
@@ -854,7 +877,6 @@ export function ProfileEditor() {
       <button
         onClick={async () => {
           try {
-            const { parseConfig } = await import("../utils/config");
             s.setConfig(parseConfig(JSON.parse(value)));
             setError("Configuration applied.");
           } catch (e) {

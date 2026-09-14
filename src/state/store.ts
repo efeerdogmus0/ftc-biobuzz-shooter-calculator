@@ -19,6 +19,7 @@ interface State {
   playSpeed: number;
   playReset: number;
   showTrajectory: boolean;
+  trajectoryColor: "status" | "speed" | "time" | "vertical";
   history: { id: string; shot: Shot }[];
   coverage: CoverageCell[];
   coverageMode: "reachability" | "angle" | "velocity" | "energy";
@@ -51,6 +52,7 @@ export const useStore = create<State>((set, get) => ({
   playSpeed: 1,
   playReset: 0,
   showTrajectory: true,
+  trajectoryColor: "status",
   history: [],
   coverage: [],
   coverageMode: "reachability",
@@ -59,6 +61,8 @@ export const useStore = create<State>((set, get) => ({
   overlays: {
     axes: false,
     origin: true,
+    velocity: false,
+    center: false,
     tangent: true,
     target: true,
     collisions: false,

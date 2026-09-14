@@ -19,6 +19,8 @@ export interface Candidate {
   entryAngle: number;
   clearance: number;
   score: number;
+  hoodMargin: number;
+  rpmMargin: number;
 }
 export interface CoverageCell {
   x: number;
@@ -123,6 +125,11 @@ export function solve(
           entryAngle: e.angle,
           clearance: e.clearance,
           score: score(shot),
+          hoodMargin: Math.min(
+            angle - c.shooter.hoodMin,
+            c.shooter.hoodMax - angle,
+          ),
+          rpmMargin: c.simulation.maxOmega - c.shooter.primary.omega,
         });
     }
     progress((i + 1) / (n + 1));
@@ -367,6 +374,52 @@ export function calibrate(
   params: FitParameter[],
   progress: Progress,
 ): CalibrationResult {
+  for (const row of rows) {
+    if (
+      ![row.primaryRPM, row.secondaryRPM, row.hoodDeg].every(Number.isFinite) ||
+      row.primaryRPM < 0 ||
+      row.secondaryRPM < 0 ||
+      !["training", "validation"].includes(row.split)
+    )
+      throw new Error("Invalid measurement input settings.");
+    if (
+      row.exitVelocity !== undefined &&
+      (!Number.isFinite(row.exitVelocity) || row.exitVelocity < 0)
+    )
+      throw new Error("Measured exit speed must be finite and nonnegative.");
+    if (row.spinRPM !== undefined && !Number.isFinite(row.spinRPM))
+      throw new Error("Measured spin must be finite.");
+    if (
+      row.impact &&
+      (row.impact.length !== 3 ||
+        !row.impact.every(Number.isFinite) ||
+        row.time === undefined ||
+        !Number.isFinite(row.time) ||
+        row.time <= 0 ||
+        row.time > c.simulation.maxTime)
+    )
+      throw new Error(
+        "Position measurement requires finite XYZ and a flight time within the integration horizon.",
+      );
+  }
+  if (!params.length) throw new Error("Select at least one fitting parameter.");
+  for (const p of params) {
+    if (
+      ![p.min, p.max, p.value].every(Number.isFinite) ||
+      p.min >= p.max ||
+      p.value < p.min ||
+      p.value > p.max
+    )
+      throw new Error("Invalid fit parameter bounds.");
+    if (
+      (p.key === "transfer" && c.shooter.mode !== "recalc") ||
+      (["friction", "stiffness"].includes(p.key) &&
+        c.shooter.mode !== "physical")
+    )
+      throw new Error(
+        "Selected fit parameter is inactive for this shooter model.",
+      );
+  }
   const training = rows.filter((r) => r.split === "training"),
     validation = rows.filter((r) => r.split === "validation");
   if (!training.length) throw new Error("Add measured training shots first.");

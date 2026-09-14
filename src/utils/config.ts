@@ -10,10 +10,15 @@ export function parseConfig(value: unknown): Config {
     }
     if (Array.isArray(template)) {
       if (!Array.isArray(v)) throw new Error(`${path}: expected array`);
-      if (template.length && v.length !== template.length)
+      if (
+        template.length &&
+        !path.endsWith("forceCurve") &&
+        v.length !== template.length
+      )
         throw new Error(`${path}: invalid array length`);
       v.forEach((item, i) => {
-        if (template[i] !== undefined) check(item, template[i], `${path}.${i}`);
+        const example = path.endsWith("forceCurve") ? template[0] : template[i];
+        if (example !== undefined) check(item, example, `${path}.${i}`);
       });
       return;
     }
@@ -121,6 +126,36 @@ export function parseConfig(value: unknown): Config {
       pair.some((x) => !Number.isFinite(x) || x < 0)
     )
       throw new Error("Invalid compression curve.");
+  if (c.shooter.forceCurve.some((p, i, a) => i > 0 && p[0] <= a[i - 1][0]))
+    throw new Error("Force curve compression must be strictly increasing.");
+  if (c.shooter.normalModel === "table" && c.shooter.forceCurve.length < 2)
+    throw new Error("Measured force curve needs at least two points.");
+  const motor = c.shooter.motor;
+  if (
+    motor.count < 1 ||
+    motor.count > 16 ||
+    !Number.isInteger(motor.count) ||
+    motor.resistance <= 0 ||
+    motor.reduction <= 0 ||
+    motor.efficiency <= 0 ||
+    motor.efficiency > 1 ||
+    motor.voltage <= 0 ||
+    motor.statorLimit <= 0 ||
+    motor.supplyLimit <= 0 ||
+    motor.batteryResistance < 0 ||
+    motor.torqueConstant <= 0
+  )
+    throw new Error("Invalid motor/electrical configuration.");
+  if (
+    c.robot.width <= 0 ||
+    c.robot.length <= 0 ||
+    c.shooter.maxContactTime > 1 ||
+    c.shooter.rollers.length > 16 ||
+    c.simulation.absTolerance < 1e-12 ||
+    c.simulation.relTolerance < 1e-12 ||
+    c.simulation.maxStep < 1e-5
+  )
+    throw new Error("Invalid geometry or excessive integration workload.");
   const enums: [string, string[]][] = [
     [c.shooter.mode, ["physical", "recalc"]],
     [c.shooter.topology, ["passive", "powered", "opposing", "compound"]],

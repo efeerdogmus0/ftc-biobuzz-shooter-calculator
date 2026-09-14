@@ -131,6 +131,19 @@ export function flight(
 ): FlightResult {
   const r = c.projectile.diameter / 2,
     sim = c.simulation;
+  if (origin[2] < r) {
+    const initial: Sample = { t: 0, p: origin, v: velocity, spin };
+    return {
+      samples: [initial],
+      apex: initial,
+      entry: null,
+      impact: initial,
+      status: "COLLIDED BEFORE ENTRY",
+      collision: "Floor (launch overlap)",
+      missDistance: norm(sub(origin, c.field.target.center)),
+      warnings: ["Launch point overlaps the floor."],
+    };
+  }
   const states = integrate(
     (_t, y) => {
       const v = y.slice(3, 6) as Vec3,

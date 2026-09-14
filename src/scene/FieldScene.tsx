@@ -26,7 +26,7 @@ import {
   sampleAt,
   aim,
 } from "../physics/flight";
-import { scale, add } from "../physics/math";
+import { scale, add, norm } from "../physics/math";
 import { aerodynamicForces } from "../physics/aerodynamics";
 const floorPlane = new Plane(new Vector3(0, 0, 1), 0);
 function Camera() {
@@ -35,11 +35,14 @@ function Camera() {
     dragging = useStore((s) => s.dragging);
   const { camera } = useThree();
   const controls = useRef<OrbitControlsImpl>(null);
+  const followConfig = useStore((s) =>
+    s.view === "Shooter" || s.view === "Target" ? s.config : null,
+  );
   useEffect(() => {
     const c = useStore.getState().config,
       { origin, yaw } = shooterPose(c);
     const target = new Vector3(0, 0, 0.4);
-    let pos: Vec3 = [4, -5, 4.4];
+    let pos: Vec3 = [3.3, -4.2, 3.1];
     if (view === "Top") pos = [0, -0.001, 6];
     if (view === "Side") pos = [0, -6, 1.7];
     if (view === "Shooter") {
@@ -65,7 +68,7 @@ function Camera() {
       controls.current.target.copy(target);
       controls.current.update();
     }
-  }, [view, reset, camera]);
+  }, [view, reset, camera, followConfig]);
   return (
     <OrbitControls
       ref={controls}
@@ -329,16 +332,36 @@ function Trajectory({
   history?: boolean;
   onClick?: () => void;
 }) {
+  const mode = useStore((s) => s.trajectoryColor);
   const points = shot.flight.samples.map((s) => s.p);
+  const colors =
+    history || mode === "status"
+      ? undefined
+      : shot.flight.samples.map((s) => {
+          const t =
+            mode === "time"
+              ? s.t / (shot.flight.samples.at(-1)!.t || 1)
+              : mode === "speed"
+                ? norm(s.v) / Math.max(shot.shooter.speed, 1)
+                : 0.5 + s.v[2] / Math.max(shot.shooter.speed, 1) / 2;
+          return new Color().setHSL(
+            0.58 * (1 - Math.min(1, Math.max(0, t))),
+            0.6,
+            0.65,
+          );
+        });
   return points.length > 1 ? (
     <Line
       points={points}
+      vertexColors={colors}
       color={
-        history
-          ? "#637581"
-          : shot.flight.status === "HIT"
-            ? "#bce3a9"
-            : "#e9c27c"
+        colors
+          ? "#ffffff"
+          : history
+            ? "#637581"
+            : shot.flight.status === "HIT"
+              ? "#bce3a9"
+              : "#e9c27c"
       }
       lineWidth={history ? 1.5 : 2.8}
       transparent
@@ -519,6 +542,27 @@ function World({ shot }: { shot: Shot }) {
       ))}
       <Target />
       <Robot />
+      {s.overlays.center && (
+        <mesh position={[c.robot.x, c.robot.y, 0.1]}>
+          <sphereGeometry args={[0.02, 12, 8]} />
+          <meshBasicMaterial color="#a9d6dc" />
+        </mesh>
+      )}
+      {s.overlays.velocity && (
+        <Line
+          points={[shot.origin, add(shot.origin, scale(shot.velocity, 0.1))]}
+          color="#d2e4a0"
+          lineWidth={3}
+        />
+      )}
+      {s.overlays.markers && s.showTrajectory && shot.flight.impact && (
+        <mesh position={shot.flight.impact.p}>
+          <sphereGeometry args={[0.021, 12, 8]} />
+          <meshBasicMaterial
+            color={shot.flight.status === "HIT" ? "#aed6aa" : "#ed9380"}
+          />
+        </mesh>
+      )}
       {s.showTrajectory && (
         <>
           <Trajectory shot={shot} />

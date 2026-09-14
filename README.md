@@ -18,8 +18,11 @@ npm run format:check
 npm run lint
 npm run typecheck
 npm test
+npm run test:e2e
 npm run build
 ```
+
+Browser tests use an isolated Chrome profile. Install Chromium with `npx playwright install chromium` if Chrome is not installed, or set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to your browser executable. The tests cover drag/pose, SI controls, solver hits/history, ReCalc metrics, 1,000-shot Monte Carlo, coarse field coverage, calibration UI and profile import/export.
 
 Production output is `dist/`. Serve it with any static HTTP server. Workers require HTTP rather than opening `index.html` directly from the filesystem.
 

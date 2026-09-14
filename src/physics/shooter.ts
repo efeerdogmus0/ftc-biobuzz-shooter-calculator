@@ -36,7 +36,9 @@ export function wheelSpeeds(c: Config) {
     ...s.rollers.map((w) =>
       s.link === "surface"
         ? ((p.omega * p.diameter) / w.diameter) * s.surfaceRatio
-        : w.omega,
+        : s.link === "gear"
+          ? p.omega * w.ratio
+          : w.omega,
     ),
   ];
 }
@@ -106,9 +108,31 @@ export function simulateShooter(c: Config): ShooterResult {
   const flyI = s.flywheelEnabled ? wheelInertia(s.flywheel) : 0;
   if (inertias[0] !== null && flyI !== null)
     inertias[0] += flyI * s.flywheel.ratio ** 2;
-  const unknown = inertias.some(
-    (v, i) => v === null && (i === 0 || s.topology !== "passive"),
+  if (flyI === null) inertias[0] = null;
+  const coupled = s.mode === "physical" && s.link === "gear";
+  const ratios = ws.map((w, i) =>
+    i === 0 ? 1 : i === 1 && s.topology === "passive" ? 0 : w.ratio,
   );
+  const missing =
+    inertias.some((j, i) => ratios[i] !== 0 && j === null) || flyI === null;
+  const equivalentInertia = missing
+    ? null
+    : inertias.reduce<number>(
+        (sum, j, i) => sum + (j ?? 0) * ratios[i] ** 2,
+        0,
+      );
+  const unknown = coupled
+    ? equivalentInertia === null || equivalentInertia <= 0
+    : inertias.some(
+        (v, i) =>
+          (v === null || (s.mode === "physical" && v === 0)) &&
+          !(i === 1 && s.topology === "passive"),
+      ) || flyI === null;
+  const recoveryInertia = unknown
+    ? null
+    : coupled
+      ? equivalentInertia
+      : inertias[0];
   const stored = unknown
     ? null
     : inertias.reduce<number>(
@@ -172,7 +196,13 @@ export function simulateShooter(c: Config): ShooterResult {
         const passive = i === 1 && s.topology === "passive";
         const j = inertias[i];
         const driven = !(passive || j === 0 || j === null);
-        const invJ = driven ? 1 / j : 0;
+        const invJ = coupled
+          ? equivalentInertia && !passive
+            ? ratios[i] ** 2 / equivalentInertia
+            : 0
+          : driven
+            ? 1 / j
+            : 0;
         const slip =
           (passive ? 0 : stateW[i] * radii[i]) - speed - sign * spin * r;
         const invMass = 1 / m + (r * r) / I + radii[i] ** 2 * invJ;
@@ -183,7 +213,12 @@ export function simulateShooter(c: Config): ShooterResult {
         );
         speed += impulse / m;
         spin += (sign * impulse * r) / I;
-        if (driven) stateW[i] -= (impulse * radii[i]) / j;
+        if (coupled && equivalentInertia && !passive) {
+          // Generalized shaft momentum: reflect each rotor inertia by ratio².
+          const delta = (impulse * radii[i] * ratios[i]) / equivalentInertia;
+          for (let k = 0; k < stateW.length; k++)
+            stateW[k] -= delta * ratios[k];
+        } else if (!coupled && driven) stateW[i] -= (impulse * radii[i]) / j;
         slipLoss += Math.max(
           0,
           impulse * slip - 0.5 * impulse * impulse * invMass,
@@ -230,11 +265,11 @@ export function simulateShooter(c: Config): ShooterResult {
   const recovery =
     s.mode === "recalc"
       ? 0.098 * (drop / rpm(274))
-      : motorRecovery(c, inertias[0], post, omegas[0]);
+      : motorRecovery(c, recoveryInertia, post, omegas[0]);
   const spinup =
     s.mode === "recalc"
       ? 0.323 * ratio
-      : motorRecovery(c, inertias[0], 0, omegas[0]);
+      : motorRecovery(c, recoveryInertia, 0, omegas[0]);
   return {
     speed,
     spin,
