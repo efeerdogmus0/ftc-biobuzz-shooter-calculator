@@ -250,7 +250,9 @@ export default function App() {
                 <button
                   key={view}
                   className={s.view === view ? "active" : ""}
-                  onClick={() => s.set({ view })}
+                  onClick={() =>
+                    s.set({ view, cameraReset: s.cameraReset + 1 })
+                  }
                 >
                   {view}
                 </button>

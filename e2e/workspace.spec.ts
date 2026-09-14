@@ -7,6 +7,61 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator("canvas")).toBeVisible();
 });
 test.afterEach(() => expect(errors).toEqual([]));
+test("field fits the viewport and Top restores the overhead camera", async ({
+  page,
+}) => {
+  // Read the live renderer, so a visible canvas alone cannot hide a broken camera.
+  const cameraState = () =>
+    page.evaluate(async () => {
+      const moduleUrl = "/node_modules/.vite/deps/@react-three_fiber.js";
+      const { _roots } = await import(/* @vite-ignore */ moduleUrl);
+      const state = [..._roots.values()][0].store.getState();
+      const camera = state.camera;
+      const direction = camera.position
+        .clone()
+        .sub(state.controls.target)
+        .normalize();
+      const corners = [-1.8542, 1.8542].flatMap((x) =>
+        [-1.8542, 1.8542].map((y) => {
+          const point = camera.position.clone().set(x, y, 0).project(camera);
+          return Math.max(Math.abs(point.x), Math.abs(point.y));
+        }),
+      );
+      return { upward: direction.z, maxCorner: Math.max(...corners) };
+    });
+  for (const width of [1440, 700]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const view of ["Orbit", "Side", "Top"]) {
+      await page.getByRole("button", { name: view, exact: true }).click();
+      await expect
+        .poll(async () => (await cameraState()).maxCorner)
+        .toBeLessThan(0.95);
+    }
+    await expect
+      .poll(async () => (await cameraState()).upward)
+      .toBeGreaterThan(0.999);
+  }
+  const canvas = await page.locator("canvas").boundingBox();
+  if (!canvas) throw new Error("Missing field canvas");
+  await page.mouse.move(
+    canvas.x + canvas.width - 40,
+    canvas.y + canvas.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    canvas.x + canvas.width - 140,
+    canvas.y + canvas.height / 2 - 100,
+    { steps: 8 },
+  );
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await cameraState()).upward)
+    .toBeLessThan(0.99);
+  await page.getByRole("button", { name: "Top", exact: true }).click();
+  await expect
+    .poll(async () => (await cameraState()).upward)
+    .toBeGreaterThan(0.999);
+});
 test("pose controls, units, solved hit and shot restore", async ({ page }) => {
   const px = page.getByRole("spinbutton", { name: "Position X", exact: true });
   await px.fill("-1.1");

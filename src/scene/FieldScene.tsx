@@ -34,7 +34,7 @@ function Camera() {
   const view = useStore((s) => s.view),
     reset = useStore((s) => s.cameraReset),
     dragging = useStore((s) => s.dragging);
-  const { camera } = useThree();
+  const { camera, size } = useThree();
   const controls = useRef<OrbitControlsImpl>(null);
   const followConfig = useStore((s) =>
     s.view === "Shooter" || s.view === "Target" ? s.config : null,
@@ -62,14 +62,49 @@ function Camera() {
       ];
       target.set(...origin);
     }
+    // Fit the field in both dimensions, including narrow embedded viewports.
+    if (view === "Orbit" || view === "Top" || view === "Side") {
+      const direction = new Vector3(...pos).sub(target).normalize();
+      const right = new Vector3()
+        .crossVectors(direction, new Vector3(0, 0, 1))
+        .normalize();
+      const up = new Vector3().crossVectors(right, direction).normalize();
+      const tanVertical = Math.tan((43 * Math.PI) / 360);
+      const tanHorizontal =
+        (tanVertical * size.width) / Math.max(1, size.height);
+      let distance = 0;
+      const half = c.field.size / 2 + c.field.wallThickness;
+      for (const x of [-half, half])
+        for (const y of [-half, half])
+          for (const z of [0, c.field.hive.topOpeningHeight]) {
+            const offset = new Vector3(x, y, z).sub(target);
+            distance = Math.max(
+              distance,
+              offset.dot(direction) +
+                Math.max(
+                  Math.abs(offset.dot(right)) / (tanHorizontal * 0.85),
+                  Math.abs(offset.dot(up)) / (tanVertical * 0.8),
+                ),
+            );
+          }
+      pos = target
+        .clone()
+        .addScaledVector(direction, distance)
+        .toArray() as Vec3;
+    }
     camera.up.set(0, 0, 1);
     camera.position.set(...pos);
     camera.lookAt(target);
     if (controls.current) {
+      // Flush any pending orbit inertia before applying a camera preset.
+      controls.current.enableDamping = false;
+      controls.current.update();
+      camera.position.set(...pos);
       controls.current.target.copy(target);
       controls.current.update();
+      controls.current.enableDamping = true;
     }
-  }, [view, reset, camera, followConfig]);
+  }, [view, reset, camera, followConfig, size.width, size.height]);
   return (
     <OrbitControls
       ref={controls}
@@ -594,20 +629,23 @@ function World({ shot }: { shot: Shot }) {
         ]}
         color="#91a5a9"
       />
-      {c.field.obstacles.map((b) => (
-        <mesh
-          key={b.name}
-          position={b.min.map((x, i) => (x + b.max[i]) / 2) as Vec3}
-        >
-          <boxGeometry args={b.min.map((x, i) => b.max[i] - x) as Vec3} />
-          <meshStandardMaterial
-            color="#647887"
-            transparent
-            opacity={0.7}
-            wireframe={s.overlays.collisions}
-          />
-        </mesh>
-      ))}
+      {c.field.obstacles
+        .filter((b) => s.overlays.collisions || !b.name.startsWith("HIVE "))
+        .map((b) => (
+          <mesh
+            key={b.name}
+            position={b.min.map((x, i) => (x + b.max[i]) / 2) as Vec3}
+          >
+            <boxGeometry args={b.min.map((x, i) => b.max[i] - x) as Vec3} />
+            <meshStandardMaterial
+              color="#647887"
+              transparent
+              opacity={s.overlays.collisions ? 0.4 : 0.7}
+              depthWrite={!s.overlays.collisions}
+              wireframe={s.overlays.collisions}
+            />
+          </mesh>
+        ))}
       <Target />
       <Robot />
       {s.overlays.center && (
