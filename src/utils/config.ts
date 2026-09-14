@@ -13,11 +13,15 @@ export function parseConfig(value: unknown): Config {
       if (
         template.length &&
         !path.endsWith("forceCurve") &&
+        !path.endsWith("rollers") &&
         v.length !== template.length
       )
         throw new Error(`${path}: invalid array length`);
       v.forEach((item, i) => {
-        const example = path.endsWith("forceCurve") ? template[0] : template[i];
+        const example =
+          path.endsWith("forceCurve") || path.endsWith("rollers")
+            ? template[0]
+            : template[i];
         if (example !== undefined) check(item, example, `${path}.${i}`);
       });
       return;

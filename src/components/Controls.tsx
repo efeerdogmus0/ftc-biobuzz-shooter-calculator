@@ -162,7 +162,7 @@ export function ShooterControls({ shot }: { shot: Shot }) {
         ]}
       />
       <N
-        label="Primary wheel"
+        label="96 mm goBILDA Rhino RPM"
         path="shooter.primary.omega"
         kind="rpm"
         max={c.simulation.maxOmega}
@@ -196,7 +196,7 @@ export function ShooterControls({ shot }: { shot: Shot }) {
             label={
               c.shooter.link === "surface"
                 ? "Surface speed ratio"
-                : "Secondary step-up ratio"
+                : "Hood / main RPM ratio"
             }
             path={
               c.shooter.link === "surface"
@@ -208,7 +208,7 @@ export function ShooterControls({ shot }: { shot: Shot }) {
             unit=":1"
           />
           <div className="inline-metric">
-            <span>Secondary / hood roller</span>
+            <span>Hood wheel RPM / surface speed</span>
             <strong>
               {toRPM(
                 shot.shooter.surfaceSpeeds[1] /
@@ -314,6 +314,10 @@ export function ShooterControls({ shot }: { shot: Shot }) {
         />
       </Section>
       <Section title="Compression & contact">
+        <p className="muted">
+          Powered hood: 3 × AndyMark 1 in Sushi wheels. All are mechanically
+          linked to the main wheel at the editable hood/main RPM ratio.
+        </p>
         <Select
           label="Mechanism"
           path="shooter.topology"
@@ -381,13 +385,18 @@ export function ShooterControls({ shot }: { shot: Shot }) {
         </button>
         {c.shooter.rollers.map((_, i) => (
           <div key={i}>
-            <Wheel path={`shooter.rollers.${i}`} title={`Roller ${i + 2}`} />
-            <N
-              label={`Roller ${i + 2} speed`}
-              path={`shooter.rollers.${i}.omega`}
-              kind="rpm"
-              max={2500}
+            <Wheel
+              path={`shooter.rollers.${i}`}
+              title={`Sushi hood wheel ${i + 2}`}
             />
+            {c.shooter.link === "independent" && (
+              <N
+                label={`Roller ${i + 2} speed`}
+                path={`shooter.rollers.${i}.omega`}
+                kind="rpm"
+                max={10000}
+              />
+            )}
             <button
               onClick={() =>
                 s.edit(
@@ -401,8 +410,8 @@ export function ShooterControls({ shot }: { shot: Shot }) {
           </div>
         ))}
       </Section>
-      <Wheel path="shooter.primary" title="Primary wheel" />
-      <Wheel path="shooter.secondary" title="Secondary wheel" />
+      <Wheel path="shooter.primary" title="96 mm goBILDA Rhino" />
+      <Wheel path="shooter.secondary" title="Sushi hood wheel 1" />
       <Section title="Motor & flywheel">
         <p className="muted">
           {c.shooter.motor.name}. Electrical constants are editable estimates
@@ -516,8 +525,8 @@ export function PhysicsControls() {
     <>
       <Section title="POLLEN projectile" open>
         <p className="muted">
-          Current robot values preserved: 3 in / 25 g. Manual nominal POLLEN
-          diameter differs; measure your actual pieces.
+          Nominal POLLEN is 2.8 in / 71.12 mm and 25 g. Diameter remains
+          editable for real-game-piece variation.
         </p>
         <Select
           label="Projectile model"

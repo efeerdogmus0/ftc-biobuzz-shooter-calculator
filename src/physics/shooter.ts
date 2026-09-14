@@ -37,7 +37,7 @@ export function wheelSpeeds(c: Config) {
       s.link === "surface"
         ? ((p.omega * p.diameter) / w.diameter) * s.surfaceRatio
         : s.link === "gear"
-          ? p.omega * w.ratio
+          ? p.omega * (s.topology === "powered" ? s.secondary.ratio : w.ratio)
           : w.omega,
     ),
   ];
@@ -111,7 +111,13 @@ export function simulateShooter(c: Config): ShooterResult {
   if (flyI === null) inertias[0] = null;
   const coupled = s.mode === "physical" && s.link === "gear";
   const ratios = ws.map((w, i) =>
-    i === 0 ? 1 : i === 1 && s.topology === "passive" ? 0 : w.ratio,
+    i === 0
+      ? 1
+      : i === 1 && s.topology === "passive"
+        ? 0
+        : s.link === "gear" && s.topology === "powered"
+          ? s.secondary.ratio
+          : w.ratio,
   );
   const missing =
     inertias.some((j, i) => ratios[i] !== 0 && j === null) || flyI === null;

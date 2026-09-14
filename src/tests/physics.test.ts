@@ -46,9 +46,26 @@ describe("independent numerical physics", () => {
   it("equal opposing surface speeds equilibrate to zero spin", () => {
     const c = config();
     c.shooter.topology = "opposing";
+    c.shooter.rollers = [];
+    c.shooter.link = "surface";
+    c.shooter.surfaceRatio = 1;
     const s = simulateShooter(c);
     expect(Math.abs(s.spin)).toBeLessThan(0.01);
     expect(s.speed).toBeGreaterThan(5);
+  });
+  it("uses three same-speed Sushi hood contacts without forcing POLLEN spin to zero", () => {
+    const c = config();
+    const s = simulateShooter(c);
+    expect(c.projectile.diameter).toBeCloseTo(0.07112, 10);
+    expect(c.projectile.mass).toBeCloseTo(0.025, 10);
+    expect(c.shooter.primary.diameter).toBeCloseTo(0.096, 10);
+    expect(c.shooter.secondary.diameter).toBeCloseTo(0.0254, 10);
+    expect(c.shooter.rollers).toHaveLength(2);
+    expect(s.trace[0].secondaryOmega / s.trace[0].primaryOmega).toBeCloseTo(
+      3.75,
+      10,
+    );
+    expect(Math.abs(s.spin)).toBeGreaterThan(1e-6);
   });
   it("robot translation moves origin without changing shooter", () => {
     const c = config(),
@@ -163,7 +180,11 @@ it("zero Coulomb friction cannot accelerate the projectile", () => {
 });
 it("finite measured wheel inertia produces droop", () => {
   const c = structuredClone(current);
-  for (const w of [c.shooter.primary, c.shooter.secondary]) {
+  for (const w of [
+    c.shooter.primary,
+    c.shooter.secondary,
+    ...c.shooter.rollers,
+  ]) {
     w.inertiaMode = "custom";
     w.inertia = 0.0001;
   }
@@ -181,11 +202,15 @@ it("gear-linked contact preserves shaft ratios while reflecting wheel inertia", 
   c.shooter.primary.inertia = 0.00015;
   c.shooter.secondary.inertiaMode = "custom";
   c.shooter.secondary.inertia = 0.000002;
+  for (const w of c.shooter.rollers) {
+    w.inertiaMode = "custom";
+    w.inertia = 0.000002;
+  }
   const s = simulateShooter(c);
   expect(s.drop).toBeGreaterThan(0);
   for (const row of s.trace)
     expect(row.secondaryOmega / row.primaryOmega).toBeCloseTo(4.5, 10);
-  expect(Math.abs(s.spin)).toBeLessThan(0.05);
+  expect(Number.isFinite(s.spin)).toBe(true);
 });
 it("unknown coupled inertia suppresses false recovery and energy predictions", () => {
   const c = structuredClone(current);

@@ -28,7 +28,7 @@ Production output is `dist/`. Serve it with any static HTTP server. Workers requ
 
 ## Workflow
 
-1. Load **72mm Rhino + Powered Hood** (72 mm primary, 16 mm powered roller, 3 in / 25 g projectile, exact 347 mm exit height).
+1. Load **96mm Rhino + 3× Sushi Hood** (96 mm goBILDA Rhino main wheel; three 1 in AndyMark Sushi hood wheels at a 3.75 hood/main RPM ratio; 2.8 in / 25 g POLLEN; 347 mm exit height).
 2. Drag the robot with the left mouse button; orbit with the mouse. Set X/Y, chassis heading and turret yaw numerically in **Shooter → Robot pose**. **Aim at HIVE** accounts for the exit offset. Optional grid snapping and WASD/QE drive mode are available.
 3. Change RPM, hood angle, hood travel and exit position. Wheel coupling supports independent angular speeds, gear ratios and equal/ratio-locked surface speeds.
 4. Inspect the trajectory, apex, entry/edge/wall outcome, live metrics and hoverable charts. **Fire shot** stores a configuration and trajectory; select history or a recorded curve to restore it.
@@ -46,7 +46,7 @@ Production output is `dist/`. Serve it with any static HTTP server. Workers requ
 
 ## Field scope
 
-The official [BIOBUZZ ARENA V1](https://ftc-resources.firstinspires.org/ftc/game/manual-09) and [field resources](https://ftc-resources.firstinspires.org/ftc/archive/2027/field) were consulted on 2026-09-14. The centered HIVE frame, red/blue HIVE spacing, four pentagonal CELLS, published 30° deployed pose, pivot height and active blue CELL are modeled from Section 9 Figures 9-7–9-11. The official CAD remains the fabrication authority. User-requested 3 in / 25 g POLLEN values are preserved despite the manual's differing nominal diameter.
+The official [BIOBUZZ ARENA V1](https://ftc-resources.firstinspires.org/ftc/game/manual-09) and [field resources](https://ftc-resources.firstinspires.org/ftc/archive/2027/field) were consulted on 2026-09-14. The centered HIVE frame, red/blue HIVE spacing, four pentagonal CELLS, published 30° deployed pose, pivot height and active blue CELL are modeled from Section 9 Figures 9-7–9-11. The official CAD remains the fabrication authority. POLLEN defaults to the specified 2.8 in / 25 g nominal, while diameter remains editable for measured variation.
 
 A HIT records inward entry of the entire ball through the active pentagonal blue opening before a solid collision. It does not certify retention or official scoring. Moving HIVE tipping, bounce/retention, sequential spatial roller contact and resolved soft-body deformation remain outside this implementation. GLB import is visual only; add collision boxes explicitly.
 

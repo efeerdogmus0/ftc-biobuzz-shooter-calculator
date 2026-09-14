@@ -14,9 +14,11 @@ const wheel = (
   inertiaMode: inertia === null ? "unknown" : "custom",
   ratio: 1,
 });
+const sushiWheel = () => ({ ...wheel(inch, rpm(1450 * 3.75)), ratio: 3.75 });
+
 export const current: Config = {
   version: 1,
-  name: "72mm Rhino + Powered Hood",
+  name: "96mm Rhino + 3× Sushi Hood",
   calibrated: false,
   robot: {
     x: -1.15,
@@ -33,11 +35,11 @@ export const current: Config = {
   shooter: {
     mode: "physical",
     topology: "powered",
-    primary: wheel(0.072, rpm(1450)),
-    secondary: wheel(0.016, rpm(6525)),
-    rollers: [],
-    link: "surface",
-    surfaceRatio: 1,
+    primary: wheel(0.096, rpm(1450)),
+    secondary: sushiWheel(),
+    rollers: [sushiWheel(), sushiWheel()],
+    link: "gear",
+    surfaceRatio: 3.75,
     hoodAngle: deg(65),
     hoodMin: deg(35),
     hoodMax: deg(85),
@@ -82,7 +84,7 @@ export const current: Config = {
   projectile: {
     name: "BIOBUZZ POLLEN - Current Robot",
     model: "sphere",
-    diameter: 0.0762,
+    diameter: 2.8 * inch,
     mass: 0.025,
     inertia: null,
     initialVelocity: 0.5,
@@ -127,6 +129,7 @@ Object.assign(recalc.shooter, {
   topology: "compound",
   primary: wheel(4 * inch, rpm(1700), 0.3, 1.3 * inertiaImperial),
   secondary: { ...wheel(inch, rpm(6800), 0.05, 0), ratio: 4 },
+  rollers: [],
   link: "gear",
   flywheelEnabled: true,
   flywheel: { ...wheel(4 * inch, 0, 0, 0), ratio: 1 },

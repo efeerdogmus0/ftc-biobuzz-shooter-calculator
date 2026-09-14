@@ -32,9 +32,33 @@ interface State {
   fire: (s: Shot) => void;
 }
 let initial = structuredClone(current);
+function migrateLegacyShooter(c: Config) {
+  const legacy =
+    Math.abs(c.shooter.primary.diameter - 0.072) < 1e-9 &&
+    Math.abs(c.shooter.secondary.diameter - 0.016) < 1e-9 &&
+    c.shooter.rollers.length === 0;
+  if (!legacy) return c;
+  const q = structuredClone(c);
+  q.name = current.name;
+  q.projectile.name = "POLLEN";
+  q.projectile.diameter = current.projectile.diameter;
+  q.projectile.mass = current.projectile.mass;
+  q.shooter.primary = {
+    ...current.shooter.primary,
+    omega: q.shooter.primary.omega,
+  };
+  q.shooter.secondary = structuredClone(current.shooter.secondary);
+  q.shooter.rollers = structuredClone(current.shooter.rollers);
+  q.shooter.link = "gear";
+  q.shooter.surfaceRatio = current.shooter.surfaceRatio;
+  return q;
+}
 try {
   const saved = localStorage.getItem("pollen-active");
-  if (saved) initial = parseConfig(JSON.parse(saved));
+  if (saved) {
+    initial = migrateLegacyShooter(parseConfig(JSON.parse(saved)));
+    localStorage.setItem("pollen-active", JSON.stringify(initial));
+  }
 } catch {
   /* Invalid/stale saved state cannot crash startup. */
 }
