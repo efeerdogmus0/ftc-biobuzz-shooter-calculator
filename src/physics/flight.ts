@@ -11,7 +11,7 @@ import type {
 import { add, sub, scale, dot, norm, lerp, rotateZ } from "./math";
 import { integrate } from "./integrator";
 import { aerodynamicForces } from "./aerodynamics";
-import { ballInertia, simulateShooter } from "./shooter";
+import { ballInertia, simulateShooter, spinVector } from "./shooter";
 export function targetBasis(t: TargetConfig) {
   const u: Vec3 = [Math.cos(t.yaw), Math.sin(t.yaw), 0];
   const v: Vec3 = [
@@ -51,14 +51,21 @@ export function targetOpeningClearance(
   local: readonly [number, number] | Vec3,
   radius: number,
 ) {
-  const bottom = -t.height / 2;
-  return (
-    Math.min(
-      t.width / 2 - Math.abs(local[0]),
-      local[1] - bottom,
-      targetOpeningTop(t, local[0]) - local[1],
-    ) - radius
-  );
+  const points = targetOpeningPoints(t);
+  let clearance = Infinity;
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i],
+      b = points[i + 1];
+    const dx = b[0] - a[0],
+      dy = b[1] - a[1];
+    // The points are counter-clockwise. Signed distance into each half-plane
+    // gives the exact convex-polygon erosion distance for a spherical ball.
+    clearance = Math.min(
+      clearance,
+      (dx * (local[1] - a[1]) - dy * (local[0] - a[0])) / Math.hypot(dx, dy),
+    );
+  }
+  return clearance - radius;
 }
 export function targetOpeningPoints(t: TargetConfig): Vec3[] {
   const half = t.width / 2;
@@ -344,11 +351,7 @@ export function simulate(c: Config): Shot {
     shooter.speed * Math.sin(pitch),
   ];
   if (c.robot.inheritVelocity) velocity = add(velocity, c.robot.velocity);
-  const spin: Vec3 = [
-    -Math.sin(yaw) * shooter.spin,
-    Math.cos(yaw) * shooter.spin,
-    0,
-  ];
+  const spin = spinVector(yaw, shooter.spin);
   return {
     config: c,
     shooter,

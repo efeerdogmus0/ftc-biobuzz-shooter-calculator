@@ -76,6 +76,14 @@ export function parseConfig(value: unknown): Config {
     c.shooter.hoodAngle > c.shooter.hoodMax
   )
     throw new Error("Hood angle must lie within ordered limits.");
+  for (const roller of [c.shooter.secondary, ...c.shooter.rollers]) {
+    if (
+      roller.radius <= 0 ||
+      roller.contactStart > roller.contactEnd ||
+      !roller.center.every(Number.isFinite)
+    )
+      throw new Error("Invalid hood roller contact geometry.");
+  }
   if (
     c.simulation.minOmega < 0 ||
     c.simulation.minOmega >= c.simulation.maxOmega ||

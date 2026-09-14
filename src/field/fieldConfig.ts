@@ -39,7 +39,18 @@ export const fieldConfig: FieldConfig = {
     provenance:
       "FIRST BIOBUZZ Competition Manual Section 9 V1, Figures 9-7–9-11. Dimensions are modeled from the published field drawings; official CAD remains the fabrication authority.",
   },
-  obstacles: [],
+  obstacles: [
+    {
+      min: [-inches(49.46) / 2, -inches(38.95) / 2, 0],
+      max: [inches(49.46) / 2, inches(38.95) / 2, 0.3],
+      name: "HIVE footprint / robot no-go",
+    },
+    {
+      min: [-inches(49.46) / 2, -0.03, inches(43.95) - 0.03],
+      max: [inches(49.46) / 2, 0.03, inches(43.95) + 0.03],
+      name: "HIVE pivot crossbar",
+    },
+  ],
   provenance:
-    "144 in field and centered HIVE from FIRST BIOBUZZ ARENA V1. Rendered HIVE uses the published deployed bi-stable pose; scoring collision uses the blue upward CELL opening.",
+    "144 in field and centered HIVE from FIRST BIOBUZZ ARENA V1. Rendered HIVE uses the published deployed bi-stable pose; scoring collision uses the blue upward CELL opening. The footprint is a robot no-go volume for coverage.",
 };

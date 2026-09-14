@@ -8,6 +8,15 @@ export interface WheelConfig {
   inertiaMode: "unknown" | "disk" | "custom";
   ratio: number;
 }
+/** Local 2D geometry of a hood roller. The ball travels in +X and its nominal path is Y=0. */
+export interface HoodRollerConfig extends WheelConfig {
+  angle: number;
+  radius: number;
+  center: [number, number];
+  compression: number;
+  contactStart: number;
+  contactEnd: number;
+}
 export interface MotorConfig {
   count: number;
   name: string;
@@ -27,8 +36,8 @@ export interface ShooterConfig {
   mode: "physical" | "recalc";
   topology: "passive" | "powered" | "opposing" | "compound";
   primary: WheelConfig;
-  secondary: WheelConfig;
-  rollers: WheelConfig[];
+  secondary: HoodRollerConfig;
+  rollers: HoodRollerConfig[];
   link: "independent" | "gear" | "surface";
   surfaceRatio: number;
   hoodAngle: number;
@@ -175,6 +184,7 @@ export interface ContactSample {
   force: number;
   slip: number;
   travel: number;
+  activeHoodContacts: number;
 }
 export interface ShooterResult {
   speed: number;

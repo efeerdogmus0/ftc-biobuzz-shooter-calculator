@@ -14,7 +14,7 @@ test("pose controls, units, solved hit and shot restore", async ({ page }) => {
   await page
     .getByRole("spinbutton", { name: "96 mm goBILDA Rhino RPM", exact: true })
     .fill("1650");
-  await expect(page.locator(".headline-metrics")).toContainText("8.26");
+  await expect(page.locator(".headline-metrics")).toContainText("8.01");
   await page.getByLabel("Units", { exact: true }).selectOption("SI");
   await expect(
     page.getByRole("spinbutton", { name: "Exit height", exact: true }),

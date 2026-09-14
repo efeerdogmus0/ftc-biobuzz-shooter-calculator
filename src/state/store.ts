@@ -32,6 +32,33 @@ interface State {
   fire: (s: Shot) => void;
 }
 let initial = structuredClone(current);
+function addHoodGeometry(value: unknown) {
+  if (typeof value !== "object" || value === null) return value;
+  const q = structuredClone(value) as Record<string, unknown>;
+  const shooter = q.shooter as Record<string, unknown> | undefined;
+  if (!shooter || typeof shooter !== "object") return q;
+  const defaults = [current.shooter.secondary, ...current.shooter.rollers];
+  const rollers = [
+    shooter.secondary,
+    ...((shooter.rollers as unknown[]) ?? []),
+  ];
+  rollers.forEach((roller, i) => {
+    if (typeof roller !== "object" || roller === null) return;
+    const target = roller as Record<string, unknown>;
+    const fallback = defaults[Math.min(i, defaults.length - 1)];
+    for (const key of [
+      "angle",
+      "radius",
+      "center",
+      "compression",
+      "contactStart",
+      "contactEnd",
+    ] as const)
+      if (target[key] === undefined)
+        target[key] = structuredClone(fallback[key]);
+  });
+  return q;
+}
 function migrateLegacyShooter(c: Config) {
   const legacy =
     Math.abs(c.shooter.primary.diameter - 0.072) < 1e-9 &&
@@ -56,7 +83,9 @@ function migrateLegacyShooter(c: Config) {
 try {
   const saved = localStorage.getItem("pollen-active");
   if (saved) {
-    initial = migrateLegacyShooter(parseConfig(JSON.parse(saved)));
+    initial = migrateLegacyShooter(
+      parseConfig(addHoodGeometry(JSON.parse(saved))),
+    );
     localStorage.setItem("pollen-active", JSON.stringify(initial));
   }
 } catch {

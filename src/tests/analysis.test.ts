@@ -41,6 +41,15 @@ it("coverage worker kernel reports every sampled point", () => {
   const cells = coverage(c, 0.5, () => {});
   expect(cells.length).toBeGreaterThan(0);
 }, 30000);
+it("coverage excludes robot positions overlapping the HIVE footprint", () => {
+  const c = structuredClone(current);
+  const cells = coverage(c, 0.5, () => {});
+  const blocked = cells.filter(
+    (cell) => Math.abs(cell.x) < 0.7 && Math.abs(cell.y) < 0.7,
+  );
+  expect(blocked.length).toBeGreaterThan(0);
+  expect(blocked.every((cell) => cell.candidate === null)).toBe(true);
+}, 30000);
 
 it("accepts measured curves of arbitrary length and extra rollers", () => {
   const c = structuredClone(current);

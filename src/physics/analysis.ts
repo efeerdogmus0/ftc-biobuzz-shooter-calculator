@@ -8,7 +8,7 @@ import {
   sampleAt,
   targetBasis,
 } from "./flight";
-import { simulateShooter } from "./shooter";
+import { simulateShooter, spinVector } from "./shooter";
 import { dot, norm, sub, clamp } from "./math";
 export interface Candidate {
   angle: number;
@@ -68,7 +68,7 @@ export function solve(
     ];
     if (c.robot.inheritVelocity)
       for (let j = 0; j < 3; j++) velocity[j] += c.robot.velocity[j];
-    const spin: Vec3 = [-Math.sin(yaw) * s.spin, Math.cos(yaw) * s.spin, 0];
+    const spin = spinVector(yaw, s.spin);
     const f = flight(origin, velocity, spin, c, false);
     const { n: normal } = targetBasis(target);
     let residual = -norm(sub(origin, target.center));
@@ -144,13 +144,21 @@ export function coverage(
   const cells: CoverageCell[] = [];
   const half = c.field.size / 2,
     margin = Math.hypot(c.robot.width, c.robot.length) / 2;
+  const robotOverlapsObstacle = (x: number, y: number) =>
+    c.field.obstacles.some((box) => {
+      const nearestX = Math.max(box.min[0], Math.min(x, box.max[0]));
+      const nearestY = Math.max(box.min[1], Math.min(y, box.max[1]));
+      return Math.hypot(x - nearestX, y - nearestY) <= margin;
+    });
   const count = Math.floor((c.field.size - 2 * margin) / spacing) + 1;
   for (let i = 0; i < count; i++)
     for (let j = 0; j < count; j++) {
       const q = structuredClone(c);
       q.robot.x = -half + margin + i * spacing;
       q.robot.y = -half + margin + j * spacing;
-      const candidate = solve(q, () => {}, true)[0] ?? null;
+      const candidate = robotOverlapsObstacle(q.robot.x, q.robot.y)
+        ? null
+        : (solve(q, () => {}, true)[0] ?? null);
       cells.push({ x: q.robot.x, y: q.robot.y, candidate });
       progress((i * count + j + 1) / (count * count));
     }

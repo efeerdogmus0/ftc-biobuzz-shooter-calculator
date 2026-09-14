@@ -144,6 +144,65 @@ function Wheel({ path, title }: { path: string; title: string }) {
     </Section>
   );
 }
+function HoodRollerGeometry({ path, title }: { path: string; title: string }) {
+  return (
+    <Section title={`${title} contact geometry`}>
+      <N
+        label="Mount angle"
+        path={`${path}.angle`}
+        kind="angle"
+        min={-Math.PI}
+        max={Math.PI}
+      />
+      <N
+        label="Contact radius"
+        path={`${path}.radius`}
+        kind="diameter"
+        min={0.002}
+        max={0.1}
+      />
+      <div className="two-col">
+        <N
+          label="Center X"
+          path={`${path}.center.0`}
+          kind="diameter"
+          min={-0.3}
+          max={0.3}
+        />
+        <N
+          label="Center Y"
+          path={`${path}.center.1`}
+          kind="diameter"
+          min={-0.3}
+          max={0.3}
+        />
+      </div>
+      <N
+        label="Roller compression offset"
+        path={`${path}.compression`}
+        kind="diameter"
+        min={-0.02}
+        max={0.03}
+      />
+      <div className="two-col">
+        <N
+          label="Contact start"
+          path={`${path}.contactStart`}
+          kind="diameter"
+          min={0}
+          max={0.4}
+        />
+        <N
+          label="Contact end"
+          path={`${path}.contactEnd`}
+          kind="diameter"
+          min={0}
+          max={0.4}
+        />
+      </div>
+    </Section>
+  );
+}
 export function ShooterControls({ shot }: { shot: Shot }) {
   const s = useStore(),
     c = s.config;
@@ -383,8 +442,16 @@ export function ShooterControls({ shot }: { shot: Shot }) {
         >
           + Add powered hood roller
         </button>
+        <HoodRollerGeometry
+          path="shooter.secondary"
+          title="Sushi hood wheel 1"
+        />
         {c.shooter.rollers.map((_, i) => (
           <div key={i}>
+            <HoodRollerGeometry
+              path={`shooter.rollers.${i}`}
+              title={`Sushi hood wheel ${i + 2}`}
+            />
             <Wheel
               path={`shooter.rollers.${i}`}
               title={`Sushi hood wheel ${i + 2}`}

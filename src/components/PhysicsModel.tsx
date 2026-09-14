@@ -24,7 +24,8 @@ export function PhysicsModel() {
         Each contact applies a Coulomb-limited impulse to ball translation, ball
         rotation and the wheel. A sticking impulse is limited by effective
         inverse mass, preventing friction from overshooting no-slip equilibrium.
-        Equal opposing surface speeds naturally equilibrate toward zero spin.
+        Equal opposing surface speeds can reduce spin where their contact
+        windows overlap; no output spin is imposed by the model.
       </p>
       <code>
         v_surface = ω R<br />
@@ -37,8 +38,9 @@ export function PhysicsModel() {
         Unknown wheel inertia is an explicit ideal-speed boundary. No predicted
         droop, stored energy or recovery is reported in that case. Normal force
         uses series spring stiffness, or your measured compression-force curve.
-        Contact length is hood radius times arc. All additional hood rollers are
-        simultaneous lumped contacts; their spatial engagement is not resolved.
+        Contact length is hood radius times arc. Each hood roller has its own
+        center, radius, mount angle, compression offset and contact interval;
+        only rollers overlapping the ball apply an impulse.
       </p>
       <h3>ReCalc calibration</h3>
       <p>

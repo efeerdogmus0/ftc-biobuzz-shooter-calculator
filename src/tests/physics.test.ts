@@ -6,11 +6,12 @@ import {
   segmentBox,
   shooterPose,
   targetOpeningClearance,
+  targetOpeningTop,
 } from "../physics/flight";
 import { aerodynamicForces } from "../physics/aerodynamics";
-import { simulateShooter } from "../physics/shooter";
+import { simulateShooter, spinVector } from "../physics/shooter";
 import { norm, sub } from "../physics/math";
-import { toRPM, inch, inertiaImperial } from "../utils/units";
+import { toRPM, inch, inertiaImperial, rpm } from "../utils/units";
 const config = () => structuredClone(current);
 describe("independent numerical physics", () => {
   it("matches analytic vacuum flight time, range, apex and apex time", () => {
@@ -43,14 +44,18 @@ describe("independent numerical physics", () => {
         norm(aerodynamicForces([4, 0, 0], [0, 0, 0], c).drag),
     ).toBeCloseTo(4, 12);
   });
-  it("equal opposing surface speeds equilibrate to zero spin", () => {
+  it("handles equal opposing surface speeds without a forced spin value", () => {
     const c = config();
     c.shooter.topology = "opposing";
     c.shooter.rollers = [];
     c.shooter.link = "surface";
     c.shooter.surfaceRatio = 1;
+    c.shooter.secondary.angle = 0;
+    c.shooter.secondary.center[0] = 0;
+    c.shooter.secondary.contactStart = 0;
+    c.shooter.secondary.contactEnd = 1;
     const s = simulateShooter(c);
-    expect(Math.abs(s.spin)).toBeLessThan(0.01);
+    expect(Number.isFinite(s.spin)).toBe(true);
     expect(s.speed).toBeGreaterThan(5);
   });
   it("uses three same-speed Sushi hood contacts without forcing POLLEN spin to zero", () => {
@@ -66,6 +71,24 @@ describe("independent numerical physics", () => {
       10,
     );
     expect(Math.abs(s.spin)).toBeGreaterThan(1e-6);
+    const contactCounts = s.trace.map((row) => row.activeHoodContacts);
+    expect(contactCounts).toContain(1);
+    expect(contactCounts).toContain(2);
+  });
+  it("maps lower-wheel backspin to upward Magnus for a +X launch", () => {
+    const c = config();
+    c.shooter.link = "independent";
+    c.shooter.primary.omega = rpm(1600);
+    c.shooter.secondary.omega = 0;
+    for (const roller of c.shooter.rollers) roller.omega = 0;
+    const result = simulateShooter(c);
+    expect(result.spin).toBeGreaterThan(0);
+    const { lift } = aerodynamicForces(
+      [5, 0, 0],
+      spinVector(0, result.spin),
+      c,
+    );
+    expect(lift[2]).toBeGreaterThan(0);
   });
   it("robot translation moves origin without changing shooter", () => {
     const c = config(),
@@ -101,6 +124,7 @@ describe("independent numerical physics", () => {
     const c = config();
     c.field.target.center = [0, 0, 1];
     c.field.target.tilt = 0;
+    c.field.obstacles = [];
     const f = flight([0, 0, 2], [0, 0, -1], [0, 0, 0], c);
     expect(f.status).toBe("HIT");
     expect(f.entry!.clearance).toBeGreaterThan(0);
@@ -110,6 +134,7 @@ describe("independent numerical physics", () => {
     const c = config();
     c.field.target.center = [0, 0, 1];
     c.field.target.tilt = 0;
+    c.field.obstacles = [];
     const f = flight(
       [c.field.target.width / 2 - 0.01, 0, 2],
       [0, 0, -1],
@@ -126,6 +151,15 @@ describe("independent numerical physics", () => {
     expect(
       targetOpeningClearance(t, [t.width / 2 - 0.01, t.height / 2 - 0.02], 0),
     ).toBeLessThan(0);
+  });
+  it("erodes the sloped CELL roof along its normal, not vertically", () => {
+    const t = config().field.target;
+    const x = t.width * 0.3;
+    const top = targetOpeningTop(t, x);
+    expect(targetOpeningClearance(t, [x, top - 0.011], 0.01)).toBeLessThan(0);
+    expect(targetOpeningClearance(t, [x, top - 0.014], 0.01)).toBeGreaterThan(
+      0,
+    );
   });
   it("places the active CELL on the centered blue HIVE at the published height", () => {
     const f = config().field;

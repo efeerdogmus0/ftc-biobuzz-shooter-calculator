@@ -1,4 +1,4 @@
-import type { Config, WheelConfig } from "../physics/types";
+import type { Config, HoodRollerConfig, WheelConfig } from "../physics/types";
 import { deg, inch, inertiaImperial, rpm } from "../utils/units";
 import { fieldConfig } from "../field/fieldConfig";
 const wheel = (
@@ -14,7 +14,22 @@ const wheel = (
   inertiaMode: inertia === null ? "unknown" : "custom",
   ratio: 1,
 });
-const sushiWheel = () => ({ ...wheel(inch, rpm(1450 * 3.75)), ratio: 3.75 });
+const sushiWheel = (
+  angle: number,
+  centerX: number,
+  contactStart: number,
+  contactEnd: number,
+): HoodRollerConfig => ({
+  ...wheel(inch, rpm(1450 * 3.75)),
+  ratio: 3.75,
+  angle,
+  radius: inch / 2,
+  // Nominal center is tangent to POLLEN; global/per-roller compression moves it toward the path.
+  center: [centerX, (2.8 * inch) / 2 + inch / 2],
+  compression: 0,
+  contactStart,
+  contactEnd,
+});
 
 export const current: Config = {
   version: 1,
@@ -36,8 +51,11 @@ export const current: Config = {
     mode: "physical",
     topology: "powered",
     primary: wheel(0.096, rpm(1450)),
-    secondary: sushiWheel(),
-    rollers: [sushiWheel(), sushiWheel()],
+    secondary: sushiWheel((-20 * Math.PI) / 180, 0.025, 0, 0.06),
+    rollers: [
+      sushiWheel(0, 0.07, 0.025, 0.105),
+      sushiWheel((20 * Math.PI) / 180, 0.115, 0.07, 0.15),
+    ],
     link: "gear",
     surfaceRatio: 3.75,
     hoodAngle: deg(65),
@@ -128,7 +146,11 @@ Object.assign(recalc.shooter, {
   mode: "recalc",
   topology: "compound",
   primary: wheel(4 * inch, rpm(1700), 0.3, 1.3 * inertiaImperial),
-  secondary: { ...wheel(inch, rpm(6800), 0.05, 0), ratio: 4 },
+  secondary: {
+    ...sushiWheel(0, 0, 0, 0),
+    ...wheel(inch, rpm(6800), 0.05, 0),
+    ratio: 4,
+  },
   rollers: [],
   link: "gear",
   flywheelEnabled: true,

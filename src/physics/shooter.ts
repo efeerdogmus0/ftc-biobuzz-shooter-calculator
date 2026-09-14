@@ -1,8 +1,10 @@
 import type {
   Config,
+  HoodRollerConfig,
   ShooterResult,
   WheelConfig,
   ContactSample,
+  Vec3,
 } from "./types";
 import { clamp } from "./math";
 import { rpm, inertiaImperial } from "../utils/units";
@@ -19,7 +21,14 @@ export function ballInertia(c: Config) {
     0.4 * c.projectile.mass * (c.projectile.diameter / 2) ** 2
   );
 }
-export function wheelSpeeds(c: Config) {
+export function wheelRadius(w: WheelConfig): number {
+  return "radius" in w ? (w as HoodRollerConfig).radius : w.diameter / 2;
+}
+/** Positive contact spin is backspin from the lower primary wheel. */
+export function spinVector(yaw: number, spin: number): Vec3 {
+  return [Math.sin(yaw) * spin, -Math.cos(yaw) * spin, 0];
+}
+export function wheelSpeeds(c: Config): number[] {
   const s = c.shooter,
     p = s.primary;
   const secondary =
@@ -42,9 +51,8 @@ export function wheelSpeeds(c: Config) {
     ),
   ];
 }
-export function normalForce(c: Config) {
-  const s = c.shooter,
-    x = s.compression;
+export function normalForceAt(c: Config, x: number) {
+  const s = c.shooter;
   if (s.normalModel === "linear") {
     const k = 1 / (1 / s.ballStiffness + 1 / s.wheelStiffness);
     return k * x;
@@ -58,6 +66,21 @@ export function normalForce(c: Config) {
       return a[1] + ((b[1] - a[1]) * (x - a[0])) / (b[0] - a[0]);
     }
   return table[table.length - 1][1];
+}
+export function normalForce(c: Config) {
+  return normalForceAt(c, c.shooter.compression);
+}
+/** Returns the local penetration from the roller's explicit 2D geometry. */
+export function hoodPenetration(
+  roller: HoodRollerConfig,
+  ballRadius: number,
+  travel: number,
+  globalCompression: number,
+) {
+  if (travel < roller.contactStart || travel > roller.contactEnd) return 0;
+  const centerY = roller.center[1] - globalCompression - roller.compression;
+  const distance = Math.hypot(travel - roller.center[0], centerY);
+  return Math.max(0, ballRadius + roller.radius - distance);
 }
 /** Motor recovery: back EMF and ohmic current, torque mapped through reduction,
  * current and supply-power limits, battery voltage sag. Null if wheel inertia unknown. */
@@ -100,9 +123,9 @@ export function simulateShooter(c: Config): ShooterResult {
     m = p.mass,
     r = p.diameter / 2,
     I = ballInertia(c),
-    ws = [s.primary, s.secondary, ...s.rollers],
-    omegas = wheelSpeeds(c);
-  const radii = ws.map((w) => w.diameter / 2),
+    ws: WheelConfig[] = [s.primary, s.secondary, ...s.rollers],
+    omegas: number[] = wheelSpeeds(c);
+  const radii: number[] = ws.map(wheelRadius),
     surface = omegas.map((w, i) => w * radii[i]);
   const inertias = ws.map(wheelInertia);
   const flyI = s.flywheelEnabled ? wheelInertia(s.flywheel) : 0;
@@ -196,12 +219,43 @@ export function simulateShooter(c: Config): ShooterResult {
     while (t < s.maxContactTime && travel < arc) {
       const dt = s.contactStep;
       let totalF = 0,
-        maxSlip = 0;
+        maxSlip = 0,
+        activeHoodContacts = 0,
+        maxNormal = 0;
+      const contacts: {
+        i: number;
+        sign: number;
+        passive: boolean;
+        driven: boolean;
+        contactRadius: number;
+        invMass: number;
+        slip: number;
+        impulse: number;
+      }[] = [];
       for (let i = 0; i < ws.length; i++) {
         const sign = i === 0 ? 1 : -1;
         const passive = i === 1 && s.topology === "passive";
+        const penetration =
+          i === 0
+            ? s.compression
+            : hoodPenetration(
+                ws[i] as HoodRollerConfig,
+                r,
+                travel,
+                s.compression,
+              );
+        if (i > 0 && penetration <= 0) continue;
+        if (i > 0) activeHoodContacts++;
+        const localNormal = normalForceAt(c, penetration) * (1 - s.hysteresis);
+        maxNormal = Math.max(maxNormal, localNormal);
         const j = inertias[i];
         const driven = !(passive || j === 0 || j === null);
+        // The roller mount angle projects its rim velocity and contact torque
+        // onto the local +X projectile path.
+        const contactRadius =
+          i === 0
+            ? radii[i]
+            : radii[i] * Math.cos((ws[i] as HoodRollerConfig).angle);
         const invJ = coupled
           ? equivalentInertia && !passive
             ? ratios[i] ** 2 / equivalentInertia
@@ -210,21 +264,43 @@ export function simulateShooter(c: Config): ShooterResult {
             ? 1 / j
             : 0;
         const slip =
-          (passive ? 0 : stateW[i] * radii[i]) - speed - sign * spin * r;
-        const invMass = 1 / m + (r * r) / I + radii[i] ** 2 * invJ;
+          (passive ? 0 : stateW[i] * contactRadius) - speed - sign * spin * r;
+        const invMass = 1 / m + (r * r) / I + contactRadius ** 2 * invJ;
         const impulse = clamp(
           slip / invMass,
-          -s.friction * normal * dt,
-          s.friction * normal * dt,
+          -s.friction * localNormal * dt,
+          s.friction * localNormal * dt,
         );
-        speed += impulse / m;
-        spin += (sign * impulse * r) / I;
-        if (coupled && equivalentInertia && !passive) {
-          // Generalized shaft momentum: reflect each rotor inertia by ratio².
-          const delta = (impulse * radii[i] * ratios[i]) / equivalentInertia;
-          for (let k = 0; k < stateW.length; k++)
-            stateW[k] -= delta * ratios[k];
-        } else if (!coupled && driven) stateW[i] -= (impulse * radii[i]) / j;
+        contacts.push({
+          i,
+          sign,
+          passive,
+          driven,
+          contactRadius,
+          invMass,
+          slip,
+          impulse,
+        });
+      }
+      // Resolve the active contact set from one common pre-step state. This
+      // avoids order-dependent torque when two adjacent Sushi wheels overlap.
+      speed += contacts.reduce((sum, contact) => sum + contact.impulse, 0) / m;
+      spin +=
+        contacts.reduce(
+          (sum, contact) => sum + contact.sign * contact.impulse * r,
+          0,
+        ) / I;
+      let shaftDelta = 0;
+      for (const contact of contacts) {
+        const { i, passive, driven, contactRadius, impulse, slip, invMass } =
+          contact;
+        if (coupled && equivalentInertia && !passive)
+          shaftDelta +=
+            (impulse * contactRadius * ratios[i]) / equivalentInertia;
+        else if (!coupled && driven) {
+          const j = inertias[i]!;
+          stateW[i] -= (impulse * contactRadius) / j;
+        }
         slipLoss += Math.max(
           0,
           impulse * slip - 0.5 * impulse * impulse * invMass,
@@ -232,6 +308,9 @@ export function simulateShooter(c: Config): ShooterResult {
         totalF += impulse / dt;
         maxSlip = Math.max(maxSlip, Math.abs(slip));
       }
+      if (shaftDelta)
+        for (let k = 0; k < stateW.length; k++)
+          stateW[k] -= shaftDelta * ratios[k];
       travel += Math.max(speed, 0) * dt;
       t += dt;
       if (trace.length === 0 || t - trace[trace.length - 1].t >= 0.001)
@@ -241,10 +320,11 @@ export function simulateShooter(c: Config): ShooterResult {
           spin,
           primaryOmega: stateW[0],
           secondaryOmega: stateW[1],
-          normal,
+          normal: maxNormal,
           force: totalF,
           slip: maxSlip,
           travel,
+          activeHoodContacts,
         });
     }
     post = stateW[0];
