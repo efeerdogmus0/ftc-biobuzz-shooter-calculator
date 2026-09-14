@@ -123,9 +123,8 @@ export default function App() {
         <div className="brand">
           <Hexagon size={27} />
           <div>
-            POLLEN<span>SHOOTER LAB</span>
+            POLLEN<span>SHOOTER</span>
           </div>
-          <small>01 / DIGITAL TWIN</small>
         </div>
         <div className="toolbar">
           <select
@@ -144,7 +143,7 @@ export default function App() {
             <option value="" disabled>
               {c.name}
             </option>
-            <optgroup label="Design presets">
+            <optgroup label="Presets">
               {presets.map((p, i) => (
                 <option key={i} value={`preset:${i}`}>
                   {p.name}
@@ -222,8 +221,6 @@ export default function App() {
       </header>
       <div className="workspace-bar">
         <div>
-          <span className="live-dot" /> LIVE WORKSPACE{" "}
-          <span className="slash">/</span>
           <span>BIOBUZZ 2026–27</span>
         </div>
         <div>
@@ -243,8 +240,8 @@ export default function App() {
             </SceneBoundary>
             <div className="view-heading">
               <span>FIELD VIEW</span>
-              <h1>Every shot, understood.</h1>
-              <p>Drag the robot to explore your shooting envelope.</p>
+              <h1>Shooter / HIVE</h1>
+              <p>Drag the robot to set its field position.</p>
             </div>
             <div className="camera-controls">
               {(
@@ -467,13 +464,13 @@ export default function App() {
             )}
           </div>
           <div className="model-status">
-            <span className="live-dot" /> RK45 · deterministic · SI core{" "}
+            <span>RK45 · SI</span>{" "}
             <small>{shot.flight.samples.length} integration samples</small>
           </div>
         </aside>
       </main>
       <footer>
-        <span>POLLEN / ENGINEERING WORKSPACE</span>
+        <span>POLLEN SHOOTER</span>
         <span>
           {shot.shooter.speed > c.simulation.maxSpeed
             ? "⚠ Exit speed exceeds design limit"
