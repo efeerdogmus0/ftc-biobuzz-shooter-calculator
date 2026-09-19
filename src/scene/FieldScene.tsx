@@ -12,6 +12,7 @@ import { useStore } from "../state/store";
 import type { Shot, Vec3 } from "../physics/types";
 import { shooterPose, sampleAt, aim } from "../physics/flight";
 import { HiveModel } from "./HiveModel";
+import { Flowers } from "./FlowerModel";
 import { scale, add, norm } from "../physics/math";
 import { aerodynamicForces } from "../physics/aerodynamics";
 const floorPlane = new Plane(new Vector3(0, 0, 1), 0);
@@ -500,6 +501,7 @@ function World({ shot }: { shot: Shot }) {
           </mesh>
         ))}
       <HiveModel />
+      <Flowers />
       <Robot />
       {s.overlays.center && (
         <mesh position={[c.robot.x, c.robot.y, 0.1]}>
