@@ -1,3 +1,5 @@
+import { useId } from "react";
+import { ChevronDown } from "lucide-react";
 import { useStore } from "../state/store";
 import { getPath } from "../utils/config";
 export type Unit = "angle" | "rpm" | "length" | "diameter" | "mass" | "none";
@@ -53,6 +55,7 @@ export function NumberInput({
   const c = useStore((s) => s.config),
     units = useStore((s) => s.units),
     edit = useStore((s) => s.edit);
+  const id = useId();
   const [factor, suffix] = unitInfo(kind, units === "SI");
   const v = path ? (getPath(c, path) as number) : (value ?? 0);
   const change = (n: number) => {
@@ -74,9 +77,10 @@ export function NumberInput({
             : 0.01;
   return (
     <div className="number-control" title={tip}>
-      <label>{label}</label>
+      <label htmlFor={id}>{label}</label>
       <div className="number-value">
         <input
+          id={id}
           aria-label={label}
           type="number"
           value={Number((v * factor).toFixed(5))}
@@ -162,7 +166,7 @@ export function Section({
     <details className="section" open={open}>
       <summary>
         {title}
-        <span>+</span>
+        <ChevronDown className="chevron" size={16} aria-hidden />
       </summary>
       <div className="section-content">{children}</div>
     </details>

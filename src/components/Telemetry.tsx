@@ -1,12 +1,56 @@
 import { useState, useEffect, useRef } from "react";
+import { Pause, Play } from "lucide-react";
 import type { Shot } from "../physics/types";
 import { toRPM, toDeg } from "../utils/units";
 import { norm } from "../physics/math";
 import { aerodynamicForces } from "../physics/aerodynamics";
 import { ballInertia } from "../physics/shooter";
+const charts: Record<string, [string, string]> = {
+  Trajectory: ["Height", "m"],
+  Speed: ["Speed", "m/s"],
+  "Vertical velocity": ["Vertical velocity", "m/s"],
+  Spin: ["Spin", "RPM"],
+  "Drag acceleration": ["Drag acceleration", "m/s²"],
+  "Magnus acceleration": ["Magnus acceleration", "m/s²"],
+  Energy: ["Projectile energy", "J"],
+};
+/** Round-number axis ticks covering [lo, hi]. */
+export function niceTicks(lo: number, hi: number, count = 5) {
+  const span = hi - lo || 1,
+    raw = span / Math.max(1, count - 1),
+    mag = 10 ** Math.floor(Math.log10(raw)),
+    step = ([1, 2, 2.5, 5, 10].find((m) => m * mag >= raw) ?? 10) * mag,
+    first = Math.floor(lo / step + 1e-9),
+    last = Math.ceil(hi / step - 1e-9),
+    ticks: number[] = [];
+  for (let i = first; i <= last; i++)
+    ticks.push(Number((i * step).toPrecision(12)));
+  return { ticks, step };
+}
+const tickText = (v: number, step: number) =>
+  v.toFixed(Math.max(0, -Math.floor(Math.log10(step) + 1e-9)));
+/** Track an element's content size so charts draw in real pixels. */
+export function useSize<T extends HTMLElement>() {
+  const ref = useRef<T>(null),
+    [size, setSize] = useState({ width: 600, height: 160 });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) =>
+      setSize({
+        width: Math.max(200, e.contentRect.width),
+        height: Math.max(100, e.contentRect.height),
+      }),
+    );
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, size] as const;
+}
 export function Telemetry({ shot }: { shot: Shot }) {
   const [chart, setChart] = useState("Trajectory"),
-    [hover, setHover] = useState<number | null>(null);
+    [hover, setHover] = useState<number | null>(null),
+    [box, size] = useSize<HTMLDivElement>();
   const f = shot.flight,
     c = shot.config;
   const data = f.samples.map((p) => {
@@ -35,103 +79,134 @@ export function Telemetry({ shot }: { shot: Shot }) {
       t: p.t,
     };
   });
-  const xmin = 0,
-    xmax = Math.max(0.01, ...data.map((d) => d.x)),
-    ymin = Math.min(0, ...data.map((d) => d.y)),
-    ymax = Math.max(0.1, ...data.map((d) => d.y));
-  const point = (d: (typeof data)[number]) =>
-    `${40 + (540 * (d.x - xmin)) / (xmax - xmin)},${126 - (100 * (d.y - ymin)) / (ymax - ymin)}`;
-  const h =
+  const [yName, yUnit] = charts[chart],
+    xName = chart === "Trajectory" ? "Horizontal range (m)" : "Time (s)";
+  const xs = niceTicks(0, Math.max(0.01, ...data.map((d) => d.x)), 7),
+    ys = niceTicks(
+      Math.min(0, ...data.map((d) => d.y)),
+      Math.max(1e-3, ...data.map((d) => d.y)),
+      5,
+    );
+  const xmin = xs.ticks[0],
+    xmax = xs.ticks.at(-1)!,
+    ymin = ys.ticks[0],
+    ymax = ys.ticks.at(-1)!;
+  const m = { l: 58, r: 14, t: 10, b: 34 },
+    w = size.width - m.l - m.r,
+    h = size.height - m.t - m.b;
+  const px = (x: number) => m.l + (w * (x - xmin)) / (xmax - xmin || 1),
+    py = (y: number) => m.t + h - (h * (y - ymin)) / (ymax - ymin || 1);
+  const hp =
     hover === null
       ? null
-      : data[Math.min(data.length - 1, Math.round(hover * (data.length - 1)))];
+      : data.reduce((best, d) =>
+          Math.abs(px(d.x) - hover) < Math.abs(px(best.x) - hover) ? d : best,
+        );
   return (
     <div className="telemetry">
-      <div className="telemetry-title">
-        <span>FLIGHT TELEMETRY</span>
+      <div className="panel-toolbar">
         <select
           aria-label="Telemetry chart"
           value={chart}
           onChange={(e) => setChart(e.target.value)}
         >
-          {[
-            "Trajectory",
-            "Speed",
-            "Vertical velocity",
-            "Spin",
-            "Drag acceleration",
-            "Magnus acceleration",
-            "Energy",
-          ].map((v) => (
+          {Object.keys(charts).map((v) => (
             <option key={v}>{v}</option>
           ))}
         </select>
-        <span className="muted">
-          {chart === "Trajectory"
-            ? "range m / height m"
-            : "time s / " +
-              ({
-                Speed: "m/s",
-                "Vertical velocity": "m/s",
-                Spin: "RPM",
-                "Drag acceleration": "m/s²",
-                "Magnus acceleration": "m/s²",
-                Energy: "J",
-              }[chart] ?? "")}
+        <span>
+          {yName} ({yUnit}) vs {xName.toLowerCase()} · hover to read values
         </span>
       </div>
-      <svg
-        viewBox="0 0 610 155"
-        role="img"
-        aria-label={`${chart} graph`}
-        onMouseMove={(e) =>
-          setHover(
-            (e.clientX - e.currentTarget.getBoundingClientRect().left) /
-              e.currentTarget.getBoundingClientRect().width,
-          )
-        }
-        onMouseLeave={() => setHover(null)}
-      >
-        {[0, 0.5, 1].map((v) => (
-          <g key={v}>
-            <line
-              x1="40"
-              x2="580"
-              y1={126 - v * 100}
-              y2={126 - v * 100}
-              stroke="#344047"
-              strokeDasharray="3 4"
-            />
-            <text x="3" y={130 - v * 100}>
-              {(ymin + v * (ymax - ymin)).toFixed(1)}
+      <div className="chart-box" ref={box}>
+        <svg
+          viewBox={`0 0 ${size.width} ${size.height}`}
+          role="img"
+          aria-label={`${chart} graph`}
+          onMouseMove={(e) =>
+            setHover(e.clientX - e.currentTarget.getBoundingClientRect().left)
+          }
+          onMouseLeave={() => setHover(null)}
+        >
+          {ys.ticks.map((v) => (
+            <g key={v}>
+              <line
+                className="chart-grid"
+                x1={m.l}
+                x2={m.l + w}
+                y1={py(v)}
+                y2={py(v)}
+              />
+              <text className="tick" x={m.l - 6} y={py(v) + 4} textAnchor="end">
+                {tickText(v, ys.step)}
+              </text>
+            </g>
+          ))}
+          {xs.ticks.map((v) => (
+            <text
+              key={v}
+              className="tick"
+              x={px(v)}
+              y={m.t + h + 15}
+              textAnchor="middle"
+            >
+              {tickText(v, xs.step)}
             </text>
-          </g>
-        ))}
-        <polyline
-          points={data.map(point).join(" ")}
-          fill="none"
-          stroke="#e1bd7d"
-          strokeWidth="2.2"
-        />
-        {[0, 0.25, 0.5, 0.75, 1].map((v) => (
-          <text key={v} x={40 + 540 * v} y="148">
-            {(xmax * v).toFixed(2)}
+          ))}
+          <line
+            className="chart-axis"
+            x1={m.l}
+            x2={m.l + w}
+            y1={py(Math.max(ymin, Math.min(ymax, 0)))}
+            y2={py(Math.max(ymin, Math.min(ymax, 0)))}
+          />
+          <line
+            className="chart-axis"
+            x1={m.l}
+            x2={m.l}
+            y1={m.t}
+            y2={m.t + h}
+          />
+          <text
+            className="axis-title"
+            x={m.l + w / 2}
+            y={size.height - 3}
+            textAnchor="middle"
+          >
+            {xName}
           </text>
-        ))}
-        {h && (
-          <>
-            <circle
-              cx={point(h).split(",")[0]}
-              cy={point(h).split(",")[1]}
-              r="4"
-              fill="#f5e7c8"
-            />
-            <text x="250" y="15">
-              t {h.t.toFixed(3)} s · value {h.y.toFixed(3)}
-            </text>
-          </>
+          <text
+            className="axis-title"
+            transform={`translate(12 ${m.t + h / 2}) rotate(-90)`}
+            textAnchor="middle"
+          >
+            {yName} ({yUnit})
+          </text>
+          <polyline
+            className="chart-line"
+            points={data.map((d) => `${px(d.x)},${py(d.y)}`).join(" ")}
+          />
+          {hp && (
+            <>
+              <line
+                className="chart-cross"
+                x1={px(hp.x)}
+                x2={px(hp.x)}
+                y1={m.t}
+                y2={m.t + h}
+              />
+              <circle className="chart-dot" cx={px(hp.x)} cy={py(hp.y)} r="4" />
+            </>
+          )}
+        </svg>
+        {hp && (
+          <span className="chart-readout">
+            t {hp.t.toFixed(3)} s
+            {chart === "Trajectory" ? ` · x ${hp.x.toFixed(3)} m` : ""} ·{" "}
+            {yName.toLowerCase()} {hp.y.toFixed(3)} {yUnit}
+          </span>
         )}
-      </svg>
+      </div>
     </div>
   );
 }
@@ -255,22 +330,16 @@ export function CrossSection({ shot }: { shot: Shot }) {
     c.shooter.hoodStart + (c.shooter.hoodEnd - c.shooter.hoodStart) * time;
   return (
     <div className="cross-section">
-      <div className="telemetry-title">
-        <span>SHOOTER SECTION · SCHEMATIC</span>
-        <button onClick={() => setAnimate(!animate)}>
+      <div className="panel-toolbar">
+        <span>Side-view schematic of the contact path (not to scale)</span>
+        <button className="push" onClick={() => setAnimate(!animate)}>
+          {animate ? <Pause size={14} /> : <Play size={14} />}
           {animate ? "Pause" : "Animate contact"}
         </button>
       </div>
-      <svg viewBox="0 0 360 220">
-        <circle
-          cx="160"
-          cy="120"
-          r={radius * scale}
-          fill="#343e43"
-          stroke="#efc57f"
-          strokeWidth="3"
-        />
-        <polyline points={arc} fill="none" stroke="#9facad" strokeWidth="6" />
+      <svg viewBox="0 0 360 220" role="img" aria-label="Shooter section">
+        <circle className="wheel" cx="160" cy="120" r={radius * scale} />
+        <polyline className="hood" points={arc} />
         <circle
           cx={
             160 +
@@ -285,41 +354,44 @@ export function CrossSection({ shot }: { shot: Shot }) {
               Math.sin(a)
           }
           r={(c.projectile.diameter / 2) * scale}
-          fill="#e1bd78"
-          fillOpacity=".4"
-          stroke="#ebcc8c"
+          className="ball"
         />
-        <line
-          x1="160"
-          y1="120"
-          x2="310"
-          y2="120"
-          stroke="#60747b"
-          strokeDasharray="4 4"
-        />
-        <text x="255" y="137">
+        <line className="chart-cross" x1="160" y1="120" x2="330" y2="120" />
+        <text className="tick" x="250" y="136">
           0° horizontal
         </text>
-        <text x="12" y="20">
-          Ø {(c.shooter.primary.diameter * 1000).toFixed(0)} mm /{" "}
-          {(c.shooter.secondary.diameter * 1000).toFixed(0)} mm
-        </text>
-        <text x="12" y="207">
-          compression {(c.shooter.compression * 1000).toFixed(1)} mm
-        </text>
       </svg>
-      {row && (
-        <p className="mono">
-          N {row.normal.toFixed(1)} N · Ft {row.force.toFixed(1)} N · slip{" "}
-          {row.slip.toFixed(3)} m/s
-          <br />v {row.velocity.toFixed(2)} m/s · spin{" "}
-          {toRPM(row.spin).toFixed(0)} RPM
+      <div className="readout">
+        <dl>
+          <dt>Wheel Ø main / hood</dt>
+          <dd>
+            {(c.shooter.primary.diameter * 1000).toFixed(0)} /{" "}
+            {(c.shooter.secondary.diameter * 1000).toFixed(0)} mm
+          </dd>
+          <dt>Compression</dt>
+          <dd>{(c.shooter.compression * 1000).toFixed(1)} mm</dd>
+          {row && (
+            <>
+              <dt>Contact progress</dt>
+              <dd>{(time * 100).toFixed(0)} %</dd>
+              <dt>Normal force N</dt>
+              <dd>{row.normal.toFixed(1)} N</dd>
+              <dt>Tangential force Ft</dt>
+              <dd>{row.force.toFixed(1)} N</dd>
+              <dt>Slip speed</dt>
+              <dd>{row.slip.toFixed(3)} m/s</dd>
+              <dt>Ball speed</dt>
+              <dd>{row.velocity.toFixed(2)} m/s</dd>
+              <dt>Ball spin</dt>
+              <dd>{toRPM(row.spin).toFixed(0)} RPM</dd>
+            </>
+          )}
+        </dl>
+        <p className="muted">
+          Lumped simultaneous contact model; this schematic does not assert
+          sequential roller engagement.
         </p>
-      )}
-      <p className="muted">
-        Lumped simultaneous contact model; this schematic does not assert
-        sequential roller engagement.
-      </p>
+      </div>
     </div>
   );
 }

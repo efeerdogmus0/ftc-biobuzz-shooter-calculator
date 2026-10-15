@@ -15,10 +15,14 @@ export function wheelInertia(w: WheelConfig) {
       ? w.inertia
       : null;
 }
+/** Measured inertia overrides; otherwise a thin hollow shell (2/3 m r²) or a
+ * solid sphere (2/5 m r²). */
 export function ballInertia(c: Config) {
   return (
     c.projectile.inertia ??
-    0.4 * c.projectile.mass * (c.projectile.diameter / 2) ** 2
+    (c.projectile.shell ? 2 / 3 : 0.4) *
+      c.projectile.mass *
+      (c.projectile.diameter / 2) ** 2
   );
 }
 export function wheelRadius(w: WheelConfig): number {
@@ -43,11 +47,13 @@ export function wheelSpeeds(c: Config): number[] {
     p.omega,
     secondary,
     ...s.rollers.map((w) =>
-      s.link === "surface"
-        ? ((p.omega * p.diameter) / w.diameter) * s.surfaceRatio
-        : s.link === "gear"
-          ? p.omega * (s.topology === "powered" ? s.secondary.ratio : w.ratio)
-          : w.omega,
+      s.topology === "passive"
+        ? 0
+        : s.link === "surface"
+          ? ((p.omega * p.diameter) / w.diameter) * s.surfaceRatio
+          : s.link === "gear"
+            ? p.omega * (s.topology === "powered" ? s.secondary.ratio : w.ratio)
+            : w.omega,
     ),
   ];
 }
@@ -136,7 +142,7 @@ export function simulateShooter(c: Config): ShooterResult {
   const ratios = ws.map((w, i) =>
     i === 0
       ? 1
-      : i === 1 && s.topology === "passive"
+      : i >= 1 && s.topology === "passive"
         ? 0
         : s.link === "gear" && s.topology === "powered"
           ? s.secondary.ratio
@@ -155,7 +161,7 @@ export function simulateShooter(c: Config): ShooterResult {
     : inertias.some(
         (v, i) =>
           (v === null || (s.mode === "physical" && v === 0)) &&
-          !(i === 1 && s.topology === "passive"),
+          !(i >= 1 && s.topology === "passive"),
       ) || flyI === null;
   const recoveryInertia = unknown
     ? null
@@ -234,7 +240,9 @@ export function simulateShooter(c: Config): ShooterResult {
       }[] = [];
       for (let i = 0; i < ws.length; i++) {
         const sign = i === 0 ? 1 : -1;
-        const passive = i === 1 && s.topology === "passive";
+        // A passive hood makes every hood contact (secondary and rollers) a
+        // fixed surface with zero rim speed.
+        const passive = i >= 1 && s.topology === "passive";
         const penetration =
           i === 0
             ? s.compression
@@ -250,12 +258,11 @@ export function simulateShooter(c: Config): ShooterResult {
         maxNormal = Math.max(maxNormal, localNormal);
         const j = inertias[i];
         const driven = !(passive || j === 0 || j === null);
-        // The roller mount angle projects its rim velocity and contact torque
-        // onto the local +X projectile path.
-        const contactRadius =
-          i === 0
-            ? radii[i]
-            : radii[i] * Math.cos((ws[i] as HoodRollerConfig).angle);
+        // The hood path is unrolled along local +X and roller placement is
+        // encoded by its center. Roller axles are parallel to the main wheel,
+        // so the rim velocity at contact is tangent to the path: the mount
+        // angle (angular placement around the hood) does not project it.
+        const contactRadius = radii[i];
         const invJ = coupled
           ? equivalentInertia && !passive
             ? ratios[i] ** 2 / equivalentInertia

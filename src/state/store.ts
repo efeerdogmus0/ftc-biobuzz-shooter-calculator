@@ -80,21 +80,52 @@ function migrateLegacyShooter(c: Config) {
   q.shooter.surfaceRatio = current.shooter.surfaceRatio;
   return q;
 }
+/** Validate and migrate a stored profile (active state or saved profile). */
+export function restoreConfig(value: unknown): Config {
+  return migrateLegacyShooter(parseConfig(addHoodGeometry(value)));
+}
+/** Parse the saved-profile list. One stale or malformed entry is skipped
+ * instead of discarding every saved profile. */
+export function loadProfiles(raw: string | null): Config[] {
+  let list: unknown;
+  try {
+    list = JSON.parse(raw ?? "[]");
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(list)) return [];
+  return list.flatMap((value) => {
+    try {
+      return [restoreConfig(value)];
+    } catch {
+      return [];
+    }
+  });
+}
 try {
   const saved = localStorage.getItem("pollen-active");
   if (saved) {
-    initial = migrateLegacyShooter(
-      parseConfig(addHoodGeometry(JSON.parse(saved))),
-    );
+    initial = restoreConfig(JSON.parse(saved));
     localStorage.setItem("pollen-active", JSON.stringify(initial));
   }
 } catch {
   /* Invalid/stale saved state cannot crash startup. */
 }
+/** Initial theme follows the OS (prefers-color-scheme); the header toggle
+ * overrides it for the session. */
+function systemTheme(): State["theme"] {
+  try {
+    return matchMedia("(prefers-color-scheme: light)").matches
+      ? "light"
+      : "dark";
+  } catch {
+    return "dark";
+  }
+}
 export const useStore = create<State>((set, get) => ({
   config: initial,
   units: "FTC",
-  theme: "dark",
+  theme: systemTheme(),
   view: "Orbit",
   cameraReset: 0,
   dragging: false,

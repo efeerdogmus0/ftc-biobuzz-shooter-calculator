@@ -1,11 +1,40 @@
 import { useState } from "react";
+import { Crosshair } from "lucide-react";
 import { useStore } from "../state/store";
 import { NumberInput as N, Select, Section, Toggle } from "./Inputs";
 import { aim } from "../physics/flight";
 import type { Shot, WheelConfig } from "../physics/types";
 import { toDeg, toRPM } from "../utils/units";
-import { wheelInertia } from "../physics/shooter";
+import { ballInertia, wheelInertia } from "../physics/shooter";
 import { getPath, parseConfig } from "../utils/config";
+const motorLabels = {
+  voltage: "Battery voltage",
+  batteryResistance: "Battery resistance",
+  statorLimit: "Stator current limit",
+  supplyLimit: "Supply current limit",
+  efficiency: "Drivetrain efficiency",
+  reduction: "Gear reduction",
+  kV: "Feedforward kV",
+  kA: "Feedforward kA",
+  kP: "Velocity kP",
+  resistance: "Winding resistance",
+  torqueConstant: "Torque constant",
+};
+const overlayLabels: Record<string, string> = {
+  axes: "World axes",
+  origin: "Launch origin",
+  velocity: "Launch velocity vector",
+  center: "Ball center marker",
+  tangent: "Hood tangent",
+  target: "Target volume",
+  collisions: "Collision boxes (wireframe)",
+  measurements: "Field dimensions",
+  aim: "Aim line to target",
+  forces: "Aerodynamic force vectors",
+  spin: "Spin axis",
+  markers: "Apex & 0.1 s markers",
+  field: "Field tiles & perimeter",
+};
 export function RobotControls() {
   const s = useStore();
   return (
@@ -46,7 +75,7 @@ export function RobotControls() {
         className="wide secondary"
         onClick={() => s.setConfig(aim(s.config))}
       >
-        ↗ Aim at HIVE
+        <Crosshair size={15} /> Aim turret at HIVE
       </button>
       <div className="two-col">
         <Toggle
@@ -72,6 +101,7 @@ export function RobotControls() {
           <option value={0.6096}>Tile grid · 24 in</option>
         </select>
       </label>
+      <p className="muted">Quick poses (auto-aimed at HIVE)</p>
       <div className="button-row">
         {[
           [-1.2, -1.2],
@@ -87,7 +117,7 @@ export function RobotControls() {
               s.setConfig(aim(c));
             }}
           >
-            Pose {i + 1}
+            {x}, {y} m
           </button>
         ))}
       </div>
@@ -208,10 +238,7 @@ export function ShooterControls({ shot }: { shot: Shot }) {
     c = s.config;
   return (
     <>
-      <div className="control-heading">
-        <span>SHOOTER SETTINGS</span>
-        <span className="tiny-dot" />
-      </div>
+      <span className="group-title">1 · Launch setup</span>
       <Select
         label="Shooter model"
         path="shooter.mode"
@@ -221,7 +248,7 @@ export function ShooterControls({ shot }: { shot: Shot }) {
         ]}
       />
       <N
-        label="96 mm goBILDA Rhino RPM"
+        label="Main wheel RPM"
         path="shooter.primary.omega"
         kind="rpm"
         max={c.simulation.maxOmega}
@@ -292,23 +319,11 @@ export function ShooterControls({ shot }: { shot: Shot }) {
         max={c.shooter.hoodMax}
         tip="Angle above field horizontal; mechanical offset is added below."
       />
-      <div className="two-col">
-        <N
-          label="Minimum hood"
-          path="shooter.hoodMin"
-          kind="angle"
-          max={Math.PI / 2}
-        />
-        <N
-          label="Maximum hood"
-          path="shooter.hoodMax"
-          kind="angle"
-          max={Math.PI / 2}
-        />
-      </div>
       <p className="muted">
         0° horizontal · 90° upward. Launch tangent:{" "}
-        {toDeg(c.shooter.hoodAngle + c.shooter.hoodOffset).toFixed(1)}°
+        {toDeg(c.shooter.hoodAngle + c.shooter.hoodOffset).toFixed(1)}° · travel{" "}
+        {toDeg(c.shooter.hoodMin).toFixed(0)}–
+        {toDeg(c.shooter.hoodMax).toFixed(0)}°
       </p>
       <N
         label="Exit height"
@@ -317,7 +332,25 @@ export function ShooterControls({ shot }: { shot: Shot }) {
         min={0.05}
         max={2}
       />
+      <span className="group-title">2 · Robot placement</span>
       <RobotControls />
+      <span className="group-title">Advanced shooter geometry</span>
+      <Section title="Hood travel limits">
+        <div className="two-col">
+          <N
+            label="Minimum hood"
+            path="shooter.hoodMin"
+            kind="angle"
+            max={Math.PI / 2}
+          />
+          <N
+            label="Maximum hood"
+            path="shooter.hoodMax"
+            kind="angle"
+            max={Math.PI / 2}
+          />
+        </div>
+      </Section>
       <Section title="Exit & hood geometry">
         <N
           label="Exit X offset"
@@ -374,8 +407,9 @@ export function ShooterControls({ shot }: { shot: Shot }) {
       </Section>
       <Section title="Compression & contact">
         <p className="muted">
-          Powered hood: 3 × AndyMark 1 in Sushi wheels. All are mechanically
-          linked to the main wheel at the editable hood/main RPM ratio.
+          {c.shooter.topology === "passive"
+            ? "Passive hood: the hood contact has zero surface speed."
+            : "Powered hood: 3 × AndyMark 1 in Sushi wheels. All are mechanically linked to the main wheel at the editable hood/main RPM ratio."}
         </p>
         <Select
           label="Mechanism"
@@ -477,7 +511,7 @@ export function ShooterControls({ shot }: { shot: Shot }) {
           </div>
         ))}
       </Section>
-      <Wheel path="shooter.primary" title="96 mm goBILDA Rhino" />
+      <Wheel path="shooter.primary" title="Main wheel" />
       <Wheel path="shooter.secondary" title="Sushi hood wheel 1" />
       <Section title="Motor & flywheel">
         <p className="muted">
@@ -501,7 +535,7 @@ export function ShooterControls({ shot }: { shot: Shot }) {
         ).map((key, i) => (
           <N
             key={key}
-            label={key}
+            label={motorLabels[key]}
             path={`shooter.motor.${key}`}
             min={0.00001}
             max={[24, 0.5, 200, 100, 1, 20, 1, 1, 2, 10, 1][i]}
@@ -631,15 +665,15 @@ export function PhysicsControls() {
           max={500}
         />
         <Toggle
+          label="Hollow shell default inertia (⅔ m r²)"
+          checked={c.projectile.shell}
+          onChange={(v) => s.edit("projectile.shell", v)}
+        />
+        <Toggle
           label="Use custom ball inertia"
           checked={c.projectile.inertia !== null}
           onChange={(v) =>
-            s.edit(
-              "projectile.inertia",
-              v
-                ? 0.4 * c.projectile.mass * (c.projectile.diameter / 2) ** 2
-                : null,
-            )
+            s.edit("projectile.inertia", v ? ballInertia(c) : null)
           }
         />
         {c.projectile.inertia !== null && (
@@ -667,6 +701,14 @@ export function PhysicsControls() {
           label="Magnus lift enabled"
           checked={c.aero.magnus}
           onChange={(v) => s.edit("aero.magnus", v)}
+        />
+        <Select
+          label="Lift model"
+          path="aero.liftModel"
+          options={[
+            ["sawicki", "Sawicki piecewise Cl(S)"],
+            ["linear", "Linear Cl = slope · S"],
+          ]}
         />
         <N label="Lift slope Cl / S" path="aero.liftSlope" max={3} />
         <N label="Maximum Cl" path="aero.liftMax" max={2} />
@@ -898,7 +940,7 @@ export function FieldControls() {
         {Object.entries(s.overlays).map(([key, v]) => (
           <Toggle
             key={key}
-            label={key}
+            label={overlayLabels[key] ?? key}
             checked={v}
             onChange={(value) =>
               s.set({ overlays: { ...s.overlays, [key]: value } })

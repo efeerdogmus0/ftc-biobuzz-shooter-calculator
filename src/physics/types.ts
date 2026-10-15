@@ -10,6 +10,8 @@ export interface WheelConfig {
 }
 /** Local 2D geometry of a hood roller. The ball travels in +X and its nominal path is Y=0. */
 export interface HoodRollerConfig extends WheelConfig {
+  /** Angular placement around the curved hood (informational). The axle is
+   * parallel to the main wheel; placement along the path is `center`. */
   angle: number;
   radius: number;
   center: [number, number];
@@ -68,6 +70,9 @@ export interface ProjectileConfig {
   diameter: number;
   mass: number;
   inertia: number | null;
+  /** Default inertia when none is measured: thin hollow shell (2/3·m·r²)
+   * instead of a solid sphere (0.4·m·r²). */
+  shell: boolean;
   initialVelocity: number;
   spin: number;
   roughness: number;
@@ -76,6 +81,9 @@ export interface AerodynamicsConfig {
   cd: number;
   liftSlope: number;
   liftMax: number;
+  /** "linear": Cl = liftSlope·S. "sawicki": Cl = 1.5·S at low spin, then
+   * 0.09 + liftSlope·S (Sawicki, Hubbard & Stronge, arXiv:0712.0380). */
+  liftModel: "linear" | "sawicki";
   spinDecay: number;
   magnus: boolean;
 }

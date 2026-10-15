@@ -33,6 +33,7 @@ Production output is `dist/`. Serve it with any static HTTP server. Workers requ
 3. Change RPM, hood angle, hood travel and exit position. Wheel coupling supports independent angular speeds, gear ratios and equal/ratio-locked surface speeds.
 4. Inspect the trajectory, apex, entry/edge/wall outcome, live metrics and hoverable charts. **Fire shot** stores a configuration and trajectory; select history or a recorded curve to restore it.
 5. Run **Auto solve** for angle + RPM candidates, then apply one. Use **Analysis → Evaluate hood range** for a floor heatmap. Fine grids are slow but cancellable.
+   **Analysis → Clearance envelope** draws the ball's swept side-view volume around a hooded wheel for editable (placeholder) geometry, for routing cables and structure. `npm run study` regenerates the field-wide launch-elevation study in [docs/SHOT-STUDY.md](docs/SHOT-STUDY.md) (about 20 min on 14 cores).
 6. **Monte Carlo consistency** runs 100/1,000/10,000 seeded trials in a worker. Specify measurement uncertainty, inspect entry/floor scatter, and export results.
 7. Supply actual measured data to **Measured-shot calibration**. Fit bounded parameters on training rows and inspect separately held-out validation residuals. See [calibration documentation](docs/CALIBRATION.md).
 8. Save/duplicate/load profiles, export/import JSON, and use **Debug state** to inspect the complete selected shot. Advanced configuration and explicit collision boxes are editable in **Field → Advanced profile JSON**.
@@ -54,9 +55,11 @@ A HIT records inward entry of the entire ball through the active pentagonal blue
 
 ## Architecture
 
-- `src/physics`: pure SI contact, flight, aerodynamics, integration, target collision, solver, calibration and Monte Carlo functions; independent of React and Three.js.
+- `src/physics`: pure SI contact, flight, aerodynamics, integration, target collision, solver, calibration, Monte Carlo, clearance envelope (`clearance.ts`) and shot-study (`shotStudy.ts`) functions; independent of React and Three.js.
+- `scripts/shotStudy.ts`: sharded field-wide elevation study and clearance tables.
 - `src/field/fieldConfig.ts`: official V1 field geometry with provenance, including the centered deployed HIVE fixture.
 - `src/presets`: current robot/projectile and exact ReCalc input values.
+- `src/data/legacy2025.ts`: FTC #25577's 2025-26 (DECODE) measured hits, lookup table and fitted formulas with provenance. Shown under **Analysis → Last-season reference data**; the matching **Zağanos 2025-26 (DECODE, passive hood)** preset uses last season's 5 in ARTIFACT and is not a BIOBUZZ configuration.
 - `src/workers`: heavy analysis; cancellation terminates worker immediately.
 - `src/state`: serializable design configuration and UI state.
 - `src/scene`: Z-up visualization, robot dragging, camera and shot playback.

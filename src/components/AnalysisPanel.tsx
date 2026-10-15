@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { AnalysisState } from "../app/useAnalysis";
-import { NumberInput as N, Select, Section } from "./Inputs";
+import { NumberInput as N, Select, Section, type Unit } from "./Inputs";
+import { jobLabels } from "../app/useAnalysis";
 import { useStore } from "../state/store";
 import { aim } from "../physics/flight";
 import { toDeg, toRPM } from "../utils/units";
@@ -11,6 +12,27 @@ import {
   type Uncertainty,
 } from "../physics/analysis";
 import { downloadJSON } from "../utils/config";
+import { LegacyData } from "./LegacyData";
+import { ClearancePanel } from "./ClearancePanel";
+const sigmaLabels: Record<keyof Uncertainty, [string, Unit, string?]> = {
+  rpm: ["Wheel speed σ", "none", "RPM"],
+  angle: ["Hood angle σ", "angle"],
+  mass: ["Ball mass σ", "mass"],
+  diameter: ["Ball diameter σ", "diameter"],
+  cd: ["Drag coefficient σ", "none"],
+  compression: ["Compression σ", "diameter"],
+  friction: ["Friction coefficient σ", "none"],
+  pose: ["Robot position σ", "diameter"],
+  yaw: ["Turret yaw σ", "angle"],
+  wind: ["Wind speed σ", "none", "m/s"],
+};
+const fitLabels: Record<FitParameter["key"], string> = {
+  cd: "Drag coefficient",
+  lift: "Lift slope",
+  transfer: "Transfer calibration",
+  friction: "Friction",
+  stiffness: "Ball stiffness",
+};
 export function AnalysisPanel({ a }: { a: AnalysisState }) {
   const s = useStore(),
     c = s.config;
@@ -32,11 +54,11 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
   };
   return (
     <>
-      <div className="control-heading">ANALYSIS WORKBENCH</div>
       {a.busy && (
-        <div className="job">
+        <div className="job" aria-live="polite">
           <span>
-            {a.busy} · {(a.progress * 100).toFixed(0)}%
+            Running {jobLabels[a.busy] ?? a.busy} ·{" "}
+            {(a.progress * 100).toFixed(0)}%
           </span>
           <progress max={1} value={a.progress} />
           <button onClick={a.cancel}>Cancel job</button>
@@ -120,7 +142,7 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
           disabled={!!a.busy}
           onClick={() => a.run("solve")}
         >
-          Find candidate shots
+          {a.busy === "solve" ? "Searching…" : "Find candidate shots"}
         </button>
         <p className="muted">
           Searches angle + RPM. Finite search; “no candidate” is not a proof of
@@ -140,9 +162,10 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
               s.setConfig(q);
             }}
           >
+            <span className="rank">{String(i + 1).padStart(2, "0")}</span>
             <span>
-              0{i + 1} <b>{toDeg(x.angle).toFixed(1)}°</b> ·{" "}
-              {toRPM(x.omega).toFixed(0)} RPM
+              <b>{toDeg(x.angle).toFixed(1)}°</b> hood ·{" "}
+              <b>{toRPM(x.omega).toFixed(0)}</b> RPM
             </span>
             <small>
               {x.speed.toFixed(2)} m/s · {x.energy.toFixed(3)} J ·{" "}
@@ -155,8 +178,14 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
             </small>
           </button>
         ))}
+        {a.candidates.length > 0 && (
+          <p className="muted">Click a candidate to apply it.</p>
+        )}
         {a.resultConfig && a.candidates.length === 0 && !a.busy && (
-          <p className="muted">No solver candidates stored.</p>
+          <p className="notice">
+            No candidate found within the RPM, exit-speed and entry-angle limits
+            above. Widen the limits or move the robot.
+          </p>
         )}
       </Section>
       <Section title="Evaluate hood range">
@@ -178,7 +207,7 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
           disabled={!!a.busy}
           onClick={() => a.run("coverage")}
         >
-          Evaluate Hood Range
+          {a.busy === "coverage" ? "Evaluating…" : "Run field coverage"}
         </button>
         <label className="select-control">
           Heatmap layer
@@ -200,20 +229,29 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
               {s.coverage.filter((x) => x.candidate).length} /{" "}
               {s.coverage.length} sampled poses have a valid candidate.
             </p>
-            <button
-              onClick={() =>
-                downloadJSON("hood-range-analysis.json", s.coverage)
-              }
-            >
-              Export grid results
-            </button>
-            <button onClick={() => s.set({ coverage: [] })}>
-              Clear heatmap
-            </button>
+            <p className="muted">
+              Heatmap is drawn on the field floor; use the Top camera.
+            </p>
+            <div className="button-row">
+              <button
+                onClick={() =>
+                  downloadJSON("hood-range-analysis.json", s.coverage)
+                }
+              >
+                Export grid results
+              </button>
+              <button onClick={() => s.set({ coverage: [] })}>
+                Clear heatmap
+              </button>
+            </div>
           </>
         )}
       </Section>
       <Section title="Monte Carlo consistency">
+        <p className="muted">
+          Repeats the current shot with random measurement errors to estimate
+          how often it still enters the CELL.
+        </p>
         <label className="select-control">
           Number of shots
           <select
@@ -233,10 +271,12 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
           step={1}
           slider={false}
         />
+        <p className="eyebrow">Measurement uncertainty (1σ)</p>
         {Object.entries(a.uncertainty).map(([key, v]) => (
           <N
             key={key}
-            label={`${key} σ`}
+            label={sigmaLabels[key as keyof Uncertainty][0]}
+            kind={sigmaLabels[key as keyof Uncertainty][1]}
             value={v}
             onChange={(x) => a.setUncertainty({ ...a.uncertainty, [key]: x })}
             max={
@@ -253,22 +293,7 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
                         : 1
             }
             step={key === "rpm" ? 1 : 0.0001}
-            unit={
-              (
-                {
-                  rpm: "RPM",
-                  angle: "rad",
-                  mass: "kg",
-                  diameter: "m",
-                  cd: "",
-                  compression: "m",
-                  friction: "",
-                  pose: "m",
-                  yaw: "rad",
-                  wind: "m/s",
-                } satisfies Record<keyof Uncertainty, string>
-              )[key as keyof Uncertainty]
-            }
+            unit={sigmaLabels[key as keyof Uncertainty][2]}
             slider={false}
           />
         ))}
@@ -277,7 +302,9 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
           disabled={!!a.busy}
           onClick={() => a.run("monteCarlo")}
         >
-          Run consistency simulation
+          {a.busy === "monteCarlo"
+            ? "Simulating…"
+            : "Run consistency simulation"}
         </button>
         {a.mc && (
           <>
@@ -302,6 +329,8 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
                   : c.field.target.height
               }
               ellipses={a.mc.ellipses}
+              label="Entry points in CELL opening"
+              unit="mm"
             />
             <p className="muted">
               Successful entry points in opening coordinates. Gaussian
@@ -315,6 +344,8 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
               height={
                 a.mcConfig ? JSON.parse(a.mcConfig).field.size : c.field.size
               }
+              label="Floor impacts on field"
+              unit="m"
             />
             <p className="muted">
               Floor impacts only; wall / CELL collisions excluded.
@@ -401,7 +432,7 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
               onChange={() => prepare(key, min, max, value)}
             />
             <span>
-              {key} [{min}, {max}]
+              {fitLabels[key]} · {key} [{min}, {max}]
             </span>
           </label>
         ))}
@@ -425,7 +456,9 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
               <tbody>
                 {a.fit.parameters.map((p) => (
                   <tr key={p.key}>
-                    <td>{p.key}</td>
+                    <td>
+                      {fitLabels[p.key]} <small>{p.key}</small>
+                    </td>
                     <td>{p.initial.toPrecision(4)}</td>
                     <td>{p.value.toPrecision(4)}</td>
                   </tr>
@@ -460,6 +493,8 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
           </>
         )}
       </Section>
+      <ClearancePanel />
+      <LegacyData />
     </>
   );
 }
@@ -468,51 +503,70 @@ function Scatter({
   width,
   height,
   ellipses = [],
+  label,
+  unit,
 }: {
   points: [number, number][];
   width: number;
   height: number;
   ellipses?: NonNullable<AnalysisState["mc"]>["ellipses"];
+  label: string;
+  unit: "m" | "mm";
 }) {
-  const scale = 220 / Math.max(width, height);
+  // Plot area 40..250 × 22..152 inside a 260 × 180 view box; points are SI m.
+  const scale = Math.min(210 / width, 130 / height),
+    cx = 145,
+    cy = 87,
+    k = unit === "mm" ? 1000 : 1,
+    fmt = (v: number) => (v * k).toFixed(unit === "mm" ? 0 : 2);
   return (
-    <svg
-      className="scatter"
-      viewBox="0 0 260 180"
-      aria-label="Shot scatter plot"
-    >
+    <svg className="scatter" viewBox="0 0 260 180" aria-label={label}>
+      <text className="axis-title" x="130" y="13" textAnchor="middle">
+        {label}
+      </text>
       <rect
-        x={130 - (width * scale) / 2}
-        y={90 - (height * scale) / 2}
+        className="frame"
+        x={cx - (width * scale) / 2}
+        y={cy - (height * scale) / 2}
         width={width * scale}
         height={height * scale}
-        fill="none"
-        stroke="#73867c"
       />
       {points.slice(0, 10000).map(([x, y], i) => (
         <circle
+          className="pt"
           key={i}
-          cx={130 + x * scale}
-          cy={90 - y * scale}
+          cx={cx + x * scale}
+          cy={cy - y * scale}
           r={1.3}
-          fill="#e7bc77"
-          opacity={0.45}
         />
       ))}
       {ellipses.map((e) => (
         <ellipse
+          className="ellipse"
           key={e.level}
-          cx={130 + e.center[0] * scale}
-          cy={90 - e.center[1] * scale}
+          cx={cx + e.center[0] * scale}
+          cy={cy - e.center[1] * scale}
           rx={e.radii[0] * scale}
           ry={e.radii[1] * scale}
-          transform={`rotate(${-toDeg(e.angle)},${130 + e.center[0] * scale},${90 - e.center[1] * scale})`}
-          fill="none"
-          stroke="#afd4be"
-          strokeWidth="1"
+          transform={`rotate(${-toDeg(e.angle)},${cx + e.center[0] * scale},${cy - e.center[1] * scale})`}
           opacity={e.level}
         />
       ))}
+      <text
+        className="tick"
+        x={cx}
+        y={cy + (height * scale) / 2 + 14}
+        textAnchor="middle"
+      >
+        {fmt(-width / 2)} … {fmt(width / 2)} {unit} (horizontal)
+      </text>
+      <text
+        className="tick"
+        transform={`translate(${cx - (width * scale) / 2 - 6} ${cy}) rotate(-90)`}
+        textAnchor="middle"
+      >
+        {fmt(-height / 2)} … {fmt(height / 2)} {unit}
+      </text>
     </svg>
   );
 }

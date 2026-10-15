@@ -10,6 +10,13 @@ import {
   type FitParameter,
 } from "../physics/analysis";
 import type { AnalysisRequest } from "../workers/analysis.worker";
+/** Human labels for worker job kinds. */
+export const jobLabels: Record<string, string> = {
+  solve: "Auto solve",
+  monteCarlo: "Monte Carlo",
+  coverage: "Field coverage",
+  calibrate: "Calibration fit",
+};
 export function useAnalysis() {
   const worker = useRef<Worker | null>(null);
   const [busy, setBusy] = useState(""),

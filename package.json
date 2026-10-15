@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "study": "vite-node scripts/shotStudy.ts"
   },
   "dependencies": {
     "@react-three/drei": "10.7.4",

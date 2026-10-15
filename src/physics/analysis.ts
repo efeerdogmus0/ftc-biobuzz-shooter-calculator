@@ -354,15 +354,24 @@ export function applyParameters(c: Config, params: FitParameter[]) {
   }
   return q;
 }
+/** Configuration that reproduces one measured shot's input settings. In
+ * independent mode every hood wheel uses its own omega, so all of them take the
+ * measured secondary speed rather than keeping stale profile values. */
+export function measurementConfig(c: Config, row: Measurement) {
+  const q = structuredClone(c);
+  const secondary = (row.secondaryRPM * 2 * Math.PI) / 60;
+  q.shooter.primary.omega = (row.primaryRPM * 2 * Math.PI) / 60;
+  q.shooter.secondary.omega = secondary;
+  for (const roller of q.shooter.rollers) roller.omega = secondary;
+  q.shooter.link = "independent";
+  q.shooter.hoodAngle = (row.hoodDeg * Math.PI) / 180;
+  if (row.robot) q.robot = row.robot;
+  return q;
+}
 function residuals(c: Config, rows: Measurement[]) {
   const residual: number[] = [];
   for (const row of rows) {
-    const q = structuredClone(c);
-    q.shooter.primary.omega = (row.primaryRPM * 2 * Math.PI) / 60;
-    q.shooter.secondary.omega = (row.secondaryRPM * 2 * Math.PI) / 60;
-    q.shooter.link = "independent";
-    q.shooter.hoodAngle = (row.hoodDeg * Math.PI) / 180;
-    if (row.robot) q.robot = row.robot;
+    const q = measurementConfig(c, row);
     const s = simulate(q);
     if (row.exitVelocity !== undefined)
       residual.push((s.shooter.speed - row.exitVelocity) / 0.1);

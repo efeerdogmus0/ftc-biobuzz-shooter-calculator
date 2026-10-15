@@ -43,6 +43,18 @@ export function parseConfig(value: unknown): Config {
     )
       throw new Error(`${path}: invalid value`);
   }
+  // Profiles saved before the hollow-shell option keep a solid-sphere default.
+  const projectile = (value as { projectile?: Record<string, unknown> })
+    ?.projectile;
+  if (projectile && typeof projectile === "object" && !("shell" in projectile))
+    value = {
+      ...(value as object),
+      projectile: { ...projectile, shell: false },
+    };
+  // Profiles saved before the lift-model option keep the linear Cl(S).
+  const aero = (value as { aero?: Record<string, unknown> })?.aero;
+  if (aero && typeof aero === "object" && !("liftModel" in aero))
+    value = { ...(value as object), aero: { ...aero, liftModel: "linear" } };
   check(value, current, "profile");
   const c = value as Config;
   if (c.version !== 1) throw new Error("Unsupported profile version");
@@ -174,6 +186,7 @@ export function parseConfig(value: unknown): Config {
     [c.shooter.link, ["independent", "gear", "surface"]],
     [c.shooter.normalModel, ["linear", "table"]],
     [c.projectile.model, ["sphere", "calibrated"]],
+    [c.aero.liftModel, ["linear", "sawicki"]],
     [
       c.simulation.objective,
       ["energy", "rpm", "clearance", "robustness", "time"],

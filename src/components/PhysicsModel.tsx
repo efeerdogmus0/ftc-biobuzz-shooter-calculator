@@ -39,8 +39,8 @@ export function PhysicsModel() {
         droop, stored energy or recovery is reported in that case. Normal force
         uses series spring stiffness, or your measured compression-force curve.
         Contact length is hood radius times arc. Each hood roller has its own
-        center, radius, mount angle, compression offset and contact interval;
-        only rollers overlapping the ball apply an impulse.
+        center, radius, mount angle (placement only), compression offset and
+        contact interval; only rollers overlapping the ball apply an impulse.
       </p>
       <h3>ReCalc calibration</h3>
       <p>
@@ -56,8 +56,9 @@ export function PhysicsModel() {
         m dv/dt = mg + F_drag + F_Magnus
         <br />u = v − wind; A = πr²
         <br />
-        F_drag = −½ρ Cd A |u| u<br />S = |ω|r / |u|; Cl = min(Cl_max, liftSlope
-        · S)
+        F_drag = −½ρ Cd A |u| u<br />S = |ω|r / |u|; Cl = min(Cl_max, Cl(S));
+        Sawicki: Cl = 1.5 S (S &lt; 0.1), 0.09 + liftSlope · S above; linear:
+        liftSlope · S
         <br />
         F_Magnus = ½ρ Cl A |u|² · unit(ω × u)
         <br />

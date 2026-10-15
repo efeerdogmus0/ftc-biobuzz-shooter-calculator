@@ -411,7 +411,7 @@ function World({ shot }: { shot: Shot }) {
     <>
       <color
         attach="background"
-        args={[s.theme === "dark" ? "#192126" : "#dbe2e4"]}
+        args={[s.theme === "dark" ? "#161e23" : "#e1e7ea"]}
       />
       <ambientLight intensity={1.3} />
       <directionalLight position={[2, -3, 7]} intensity={2} />

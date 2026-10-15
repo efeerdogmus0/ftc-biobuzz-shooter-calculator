@@ -67,15 +67,16 @@ test("pose controls, units, solved hit and shot restore", async ({ page }) => {
   await px.fill("-1.1");
   await expect(px).toHaveValue("-1.1");
   await page
-    .getByRole("spinbutton", { name: "96 mm goBILDA Rhino RPM", exact: true })
+    .getByRole("spinbutton", { name: "Main wheel RPM", exact: true })
     .fill("1650");
-  await expect(page.locator(".headline-metrics")).toContainText("8.01");
+  // 1650 RPM · 48 mm radius = 8.29 m/s surface; near-matched hood → 0.996.
+  await expect(page.locator(".headline-metrics")).toContainText("8.26");
   await page.getByLabel("Units", { exact: true }).selectOption("SI");
   await expect(
     page.getByRole("spinbutton", { name: "Exit height", exact: true }),
   ).toHaveValue("0.347");
   await page.getByLabel("Units", { exact: true }).selectOption("FTC");
-  await page.getByRole("button", { name: "Auto solve ↗", exact: true }).click();
+  await page.getByRole("button", { name: "Auto solve", exact: true }).click();
   await expect(page.locator(".candidate").first()).toBeVisible();
   await page.locator(".candidate").first().click();
   await expect(page.locator(".field-status")).toContainText("HIT");
@@ -106,7 +107,7 @@ test("ReCalc reference metrics are visible and exact", async ({ page }) => {
 test("worker Monte Carlo and field coverage finish and render", async ({
   page,
 }) => {
-  await page.getByRole("button", { name: "Auto solve ↗", exact: true }).click();
+  await page.getByRole("button", { name: "Auto solve", exact: true }).click();
   await expect(page.locator(".candidate").first()).toBeVisible();
   await page.locator(".candidate").first().click();
   await page
@@ -127,7 +128,7 @@ test("worker Monte Carlo and field coverage finish and render", async ({
     .getByRole("spinbutton", { name: "Field grid spacing", exact: true })
     .fill("500");
   await page
-    .getByRole("button", { name: "Evaluate Hood Range", exact: true })
+    .getByRole("button", { name: "Run field coverage", exact: true })
     .click();
   await expect(page.locator(".success")).toContainText("sampled poses", {
     timeout: 60000,
@@ -164,12 +165,17 @@ test("measured-data UI fits synthetic reference without claiming real measuremen
     .getByRole("button", { name: "Validate measurements", exact: true })
     .click();
   await page
-    .getByRole("checkbox", { name: "transfer [0.1, 2]", exact: true })
+    .getByRole("checkbox", {
+      name: "Transfer calibration · transfer [0.1, 2]",
+      exact: true,
+    })
     .check();
   await page
     .getByRole("button", { name: "Fit training measurements", exact: true })
     .click();
-  await expect(page.locator("tbody")).toContainText("0.850");
+  await expect(
+    page.locator("tbody").filter({ hasText: "transfer" }),
+  ).toContainText("0.850");
   await expect(page.getByText(/Training RMSE:/)).toContainText(
     "Validation: 0.00",
   );
@@ -198,4 +204,48 @@ test("profile export and reimport preserve independently edited SI configuration
   await expect(
     page.getByRole("spinbutton", { name: "Exit height", exact: true }),
   ).toHaveValue("347");
+});
+test("last-season DECODE preset and reference data render", async ({
+  page,
+}) => {
+  await page
+    .getByLabel("Robot preset", { exact: true })
+    .selectOption({ label: "Zağanos 2025-26 (DECODE, passive hood)" });
+  await page.getByRole("button", { name: "Shot metrics", exact: true }).click();
+  await expect(page.locator(".metric-table")).not.toContainText("NaN");
+  await expect(page.locator(".headline-metrics")).not.toContainText("NaN");
+  await page
+    .locator(".tabs")
+    .getByRole("button", { name: "Analysis", exact: true })
+    .click();
+  await page
+    .locator("summary")
+    .filter({ hasText: "Last-season reference data" })
+    .click();
+  const chart = page.getByLabel("Legacy RPM versus distance");
+  await expect(chart.locator("circle")).toHaveCount(49);
+  await expect(page.getByText("Not BIOBUZZ")).toBeVisible();
+});
+test("clearance envelope panel draws and reacts to geometry", async ({
+  page,
+}) => {
+  await page
+    .locator(".tabs")
+    .getByRole("button", { name: "Analysis", exact: true })
+    .click();
+  await page
+    .locator("summary")
+    .filter({ hasText: "Clearance envelope" })
+    .click();
+  const chart = page.getByLabel("Clearance envelope side view");
+  await expect(chart.locator("polyline").first()).toBeVisible();
+  const summary = page.getByLabel("Clearance summary");
+  await expect(summary).toContainText("Wheel-axis vertical line");
+  await expect(summary).not.toContainText("NaN");
+  const before = await summary.textContent();
+  await page
+    .getByRole("spinbutton", { name: "Max elevation", exact: true })
+    .fill("60");
+  await expect(summary).not.toHaveText(before ?? "");
+  await expect(summary).not.toContainText("NaN");
 });
