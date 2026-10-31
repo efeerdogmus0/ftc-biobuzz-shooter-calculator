@@ -1,4 +1,7 @@
 import type { FieldConfig, TargetConfig, Vec3 } from "../physics/types";
+import { targetBasis } from "../physics/cellGeometry";
+import { axisRotation, rotate } from "../physics/rigidMath";
+import { add, sub, scale, cross, dot } from "../physics/math";
 
 export type HiveAlliance = "RED" | "BLUE";
 export interface HiveCell {
@@ -14,13 +17,7 @@ export interface HiveCell {
 export function hiveCells(field: FieldConfig): HiveCell[] {
   const { hive, target } = field;
   const halfAlliance = hive.allianceCenterSpacing / 2;
-  const centerSeparation = hive.cellGap + hive.cellDepth;
-  const rise =
-    target.center[2] -
-    (hive.bottomHeight + (hive.cellHeight * Math.cos(Math.PI / 6)) / 2);
-  const lateral = Math.sqrt(Math.max(0, centerSeparation ** 2 - rise ** 2));
-  const lowerZ =
-    hive.bottomHeight + (hive.cellHeight * Math.cos(Math.PI / 6)) / 2;
+  const lower = oppositeCellTarget(field);
   const blueUp: HiveCell = {
     id: "blue-upward-cell",
     alliance: "BLUE",
@@ -33,7 +30,7 @@ export function hiveCells(field: FieldConfig): HiveCell[] {
     {
       id: "red-upward-cell",
       alliance: "RED",
-      center: [-halfAlliance, lateral / 2, target.center[2]],
+      center: [-halfAlliance, -target.center[1], target.center[2]],
       yaw: Math.PI,
       tilt: target.tilt,
       active: false,
@@ -41,21 +38,36 @@ export function hiveCells(field: FieldConfig): HiveCell[] {
     {
       id: "red-lower-cell",
       alliance: "RED",
-      center: [-halfAlliance, -lateral / 2, lowerZ],
-      yaw: Math.PI,
-      tilt: Math.PI - target.tilt,
+      center: [-halfAlliance, -lower.center[1], lower.center[2]],
+      yaw: 0,
+      tilt: lower.tilt,
       active: false,
     },
     blueUp,
     {
       id: "blue-lower-cell",
       alliance: "BLUE",
-      center: [halfAlliance, lateral / 2, lowerZ],
-      yaw: 0,
-      tilt: Math.PI - target.tilt,
+      center: lower.center,
+      yaw: lower.yaw,
+      tilt: lower.tilt,
       active: false,
     },
   ];
+}
+export function oppositeCellTarget(field: FieldConfig): TargetConfig {
+  const t = field.target,
+    a = field.hive.deployedCellPlaneAngle,
+    axis = targetBasis(t).u,
+    pivot: Vec3 = [t.center[0], 0, field.hive.pivotHeight],
+    level = rotate(axisRotation(axis, a), sub(t.center, pivot)),
+    along = cross([0, 0, 1], axis),
+    mirrored = sub(level, scale(along, 2 * dot(level, along)));
+  return {
+    ...t,
+    center: add(pivot, rotate(axisRotation(axis, -a), mirrored)),
+    yaw: t.yaw + Math.PI,
+    tilt: -Math.PI - t.tilt,
+  };
 }
 
 export function hiveCellTarget(
@@ -68,4 +80,18 @@ export function hiveCellTarget(
     yaw: cell.yaw,
     tilt: cell.tilt,
   };
+}
+
+/** Stable contact order: active blue, opposite blue, then the two fixed red CELLS. */
+export function collisionCells(field: FieldConfig) {
+  const cells = hiveCells(field);
+  return [
+    cells.find((c) => c.active)!,
+    cells.find((c) => c.alliance === "BLUE" && !c.active)!,
+    ...cells.filter((c) => c.alliance === "RED"),
+  ].map((cell, index) => ({
+    target: hiveCellTarget(cell, field),
+    moving: index < 2,
+    prefix: ["", "Opposite ", "Red upward ", "Red lower "][index],
+  }));
 }

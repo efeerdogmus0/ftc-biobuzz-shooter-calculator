@@ -57,7 +57,8 @@ export const current: Config = {
       sushiWheel((20 * Math.PI) / 180, 0.115, 0.07, 0.15),
     ],
     link: "gear",
-    surfaceRatio: 3.75,
+    surfaceRatio: 1,
+    surfaceRatioVersion: 1,
     hoodAngle: deg(65),
     hoodMin: deg(35),
     hoodMax: deg(85),
@@ -111,6 +112,7 @@ export const current: Config = {
   },
   aero: {
     cd: 0.47,
+    liftModel: "linear",
     liftSlope: 0.6,
     liftMax: 0.5,
     spinDecay: 0.1,

@@ -4,12 +4,12 @@ import { NumberInput as N, Select, Section, Toggle } from "./Inputs";
 import { aim } from "../physics/flight";
 import type { Shot, WheelConfig } from "../physics/types";
 import { toDeg, toRPM } from "../utils/units";
-import { wheelInertia } from "../physics/shooter";
+import { wheelInertia, wheelSpeeds } from "../physics/shooter";
 import { getPath, parseConfig } from "../utils/config";
 export function RobotControls() {
   const s = useStore();
   return (
-    <Section title="Robot pose" open>
+    <Section title="Robot pose">
       <div className="two-col">
         <N
           label="Position X"
@@ -145,6 +145,10 @@ function Wheel({ path, title }: { path: string; title: string }) {
   );
 }
 function HoodRollerGeometry({ path, title }: { path: string; title: string }) {
+  const diameter = useStore(
+    (s) => getPath(s.config, `${path}.diameter`) as number,
+  );
+  const edit = useStore((s) => s.edit);
   return (
     <Section title={`${title} contact geometry`}>
       <N
@@ -156,7 +160,8 @@ function HoodRollerGeometry({ path, title }: { path: string; title: string }) {
       />
       <N
         label="Contact radius"
-        path={`${path}.radius`}
+        value={diameter / 2}
+        onChange={(v) => edit(`${path}.diameter`, 2 * v)}
         kind="diameter"
         min={0.002}
         max={0.1}
@@ -212,111 +217,121 @@ export function ShooterControls({ shot }: { shot: Shot }) {
         <span>SHOOTER SETTINGS</span>
         <span className="tiny-dot" />
       </div>
-      <Select
-        label="Shooter model"
-        path="shooter.mode"
-        options={[
-          ["physical", "Physical Contact Model"],
-          ["recalc", "ReCalc-Calibrated Model"],
-        ]}
-      />
-      <N
-        label="96 mm goBILDA Rhino RPM"
-        path="shooter.primary.omega"
-        kind="rpm"
-        max={c.simulation.maxOmega}
-        step={(2 * Math.PI) / 60}
-      />
-      <div className="inline-metric">
-        <span>Surface velocity</span>
-        <strong>
-          {shot.shooter.surfaceSpeeds[0].toFixed(2)} <small>m/s</small>
-        </strong>
-      </div>
-      <Select
-        label="Wheel coupling"
-        path="shooter.link"
-        options={[
-          ["surface", "Lock surface speed ratio"],
-          ["gear", "Gear ratio linked"],
-          ["independent", "Independent RPM"],
-        ]}
-      />
-      {c.shooter.link === "independent" ? (
+      <Section title="Shooter model" open>
+        <Select
+          label="Shooter model"
+          hideLabel
+          path="shooter.mode"
+          options={[
+            ["physical", "Physical Contact Model"],
+            ["recalc", "ReCalc-Calibrated Model"],
+          ]}
+        />
+      </Section>
+      <Section title="Shooter configuration" open>
         <N
-          label="Secondary / hood roller"
-          path="shooter.secondary.omega"
+          label="Wheel diameter"
+          path="shooter.primary.diameter"
+          kind="diameter"
+          min={0.005}
+          max={0.3}
+          slider={false}
+        />
+        <N
+          label="96 mm goBILDA Rhino RPM"
+          path="shooter.primary.omega"
           kind="rpm"
-          max={2500}
+          max={c.simulation.maxOmega}
+          step={(2 * Math.PI) / 60}
         />
-      ) : (
-        <>
+        <div className="inline-metric">
+          <span>Surface velocity</span>
+          <strong>
+            {shot.shooter.surfaceSpeeds[0].toFixed(2)} <small>m/s</small>
+          </strong>
+        </div>
+        <Select
+          label="Wheel coupling"
+          path="shooter.link"
+          options={[
+            ["surface", "Lock surface speed ratio"],
+            ["gear", "Gear ratio linked"],
+            ["independent", "Independent RPM"],
+          ]}
+        />
+        {c.shooter.link === "independent" ? (
           <N
-            label={
-              c.shooter.link === "surface"
-                ? "Surface speed ratio"
-                : "Hood / main RPM ratio"
-            }
-            path={
-              c.shooter.link === "surface"
-                ? "shooter.surfaceRatio"
-                : "shooter.secondary.ratio"
-            }
-            min={0}
-            max={10}
-            unit=":1"
+            label="Secondary / hood roller"
+            path="shooter.secondary.omega"
+            kind="rpm"
+            max={2500}
           />
-          <div className="inline-metric">
-            <span>Hood wheel RPM / surface speed</span>
-            <strong>
-              {toRPM(
-                shot.shooter.surfaceSpeeds[1] /
-                  (c.shooter.secondary.diameter / 2),
-              ).toFixed(0)}{" "}
-              <small>RPM</small> · {shot.shooter.surfaceSpeeds[1].toFixed(2)}{" "}
-              <small>m/s</small>
-            </strong>
-          </div>
-        </>
-      )}
-      <div className="separator" />
-      <N
-        label={
-          c.shooter.hoodOffset === 0
-            ? "Hood launch angle"
-            : "Mechanical hood setting"
-        }
-        path="shooter.hoodAngle"
-        kind="angle"
-        min={c.shooter.hoodMin}
-        max={c.shooter.hoodMax}
-        tip="Angle above field horizontal; mechanical offset is added below."
-      />
-      <div className="two-col">
+        ) : (
+          <>
+            <N
+              label={
+                c.shooter.link === "surface"
+                  ? "Surface speed ratio"
+                  : "Hood / main RPM ratio"
+              }
+              path={
+                c.shooter.link === "surface"
+                  ? "shooter.surfaceRatio"
+                  : "shooter.secondary.ratio"
+              }
+              min={0}
+              max={10}
+              unit=":1"
+            />
+            <div className="inline-metric">
+              <span>Hood wheel RPM / surface speed</span>
+              <strong>
+                {toRPM(wheelSpeeds(c)[1]).toFixed(0)} <small>RPM</small> ·{" "}
+                {shot.shooter.surfaceSpeeds[1].toFixed(2)} <small>m/s</small>
+              </strong>
+            </div>
+          </>
+        )}
+      </Section>
+      <Section title="Hood launch angle" open>
         <N
-          label="Minimum hood"
-          path="shooter.hoodMin"
+          label={
+            c.shooter.hoodOffset === 0
+              ? "Hood launch angle"
+              : "Mechanical hood setting"
+          }
+          path="shooter.hoodAngle"
           kind="angle"
-          max={Math.PI / 2}
+          min={c.shooter.hoodMin}
+          max={c.shooter.hoodMax}
+          tip="Angle above field horizontal; mechanical offset is added below."
         />
+        <div className="two-col">
+          <N
+            label="Minimum hood"
+            path="shooter.hoodMin"
+            kind="angle"
+            max={Math.PI / 2}
+          />
+          <N
+            label="Maximum hood"
+            path="shooter.hoodMax"
+            kind="angle"
+            max={Math.PI / 2}
+          />
+        </div>
+        <p className="muted">
+          0° horizontal · 90° upward. Launch tangent:{" "}
+          {toDeg(c.shooter.hoodAngle + c.shooter.hoodOffset).toFixed(1)}°
+        </p>
         <N
-          label="Maximum hood"
-          path="shooter.hoodMax"
-          kind="angle"
-          max={Math.PI / 2}
+          label="Exit height"
+          path="robot.exitOffset.2"
+          kind="diameter"
+          min={0.05}
+          max={2}
         />
-      </div>
-      <p className="muted">
-        0° horizontal · 90° upward. Launch tangent:{" "}
-        {toDeg(c.shooter.hoodAngle + c.shooter.hoodOffset).toFixed(1)}°
-      </p>
-      <N
-        label="Exit height"
-        path="robot.exitOffset.2"
-        kind="diameter"
-        min={0.05}
-        max={2}
-      />
+      </Section>
       <RobotControls />
       <Section title="Exit & hood geometry">
         <N
@@ -623,13 +638,10 @@ export function PhysicsControls() {
           max={4}
           unit="m/s"
         />
-        <N
-          label="Initial feed spin"
-          path="projectile.spin"
-          kind="rpm"
-          min={-500}
-          max={500}
-        />
+        <p className="muted">
+          Spin shooter temasından otomatik hesaplanır; beslenen top başlangıçta
+          dönmüyor kabul edilir.
+        </p>
         <Toggle
           label="Use custom ball inertia"
           checked={c.projectile.inertia !== null}
@@ -668,6 +680,19 @@ export function PhysicsControls() {
           checked={c.aero.magnus}
           onChange={(v) => s.edit("aero.magnus", v)}
         />
+        <Select
+          label="Lift model"
+          path="aero.liftModel"
+          options={[
+            ["linear", "Linear Cl / spin ratio"],
+            ["sawicki", "Sawicki baseball fit (experimental)"],
+          ]}
+        />
+        {c.aero.liftModel === "sawicki" && (
+          <p className="muted">
+            Baseball-derived fit; uncalibrated for perforated POLLEN.
+          </p>
+        )}
         <N label="Lift slope Cl / S" path="aero.liftSlope" max={3} />
         <N label="Maximum Cl" path="aero.liftMax" max={2} />
         <N label="Spin decay" path="aero.spinDecay" max={5} unit="s⁻¹" />
@@ -802,10 +827,15 @@ export function FieldControls() {
       <div className="notice">
         Competition HIVE is centered on the FIELD in the published deployed 30°
         position. The blue upward CELL is the active scoring volume; its
-        pentagonal opening is used for entry checks. No tipping / retention
-        model.
+        pentagonal opening is used for entry checks. Loaded-CELL motion and
+        retention are evaluated in the bounce simulation.
       </div>
       <Section title="Field & scoring volume" open>
+        <Toggle
+          label="HIVE support structure"
+          checked={c.field.hiveStructure !== false}
+          onChange={(v) => s.edit("field.hiveStructure", v)}
+        />
         <N
           label="Field side length"
           path="field.size"

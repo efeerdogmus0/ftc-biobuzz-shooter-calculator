@@ -10,6 +10,11 @@ import {
   type FitParameter,
 } from "../physics/analysis";
 import type { AnalysisRequest } from "../workers/analysis.worker";
+import {
+  ballModelSettings,
+  physicsStamp,
+  type BallModelSettings,
+} from "../physics/launchDynamics";
 export function useAnalysis() {
   const worker = useRef<Worker | null>(null);
   const [busy, setBusy] = useState(""),
@@ -22,12 +27,18 @@ export function useAnalysis() {
     [seed, setSeed] = useState(42),
     [spacing, setSpacing] = useState(0.2),
     [uncertainty, setUncertainty] = useState(defaultUncertainty),
-    [measurements, setMeasurements] = useState<Measurement[]>([]),
+    [measurements, setMeasurements] = useState<Measurement[]>(
+      () => useStore.getState().calibration?.measurements ?? [],
+    ),
+    [fitMeasurements, setFitMeasurements] = useState<Measurement[]>([]),
     [parameters, setParameters] = useState<FitParameter[]>([]);
   const [resultConfig, setResultConfig] = useState("");
   const [candidateConfig, setCandidateConfig] = useState("");
   const [mcConfig, setMCConfig] = useState("");
   const [fitConfig, setFitConfig] = useState("");
+  const [candidateModel, setCandidateModel] = useState<BallModelSettings>();
+  const [mcModel, setMCModel] = useState<BallModelSettings>();
+  const [fitModel, setFitModel] = useState<BallModelSettings>();
   useEffect(() => () => worker.current?.terminate(), []);
   const cancel = () => {
     worker.current?.terminate();
@@ -40,7 +51,9 @@ export function useAnalysis() {
     setBusy(kind);
     setProgress(0);
     const config = structuredClone(useStore.getState().config),
-      stamp = JSON.stringify(config);
+      model = ballModelSettings(useStore.getState().bounceSettings),
+      configJSON = JSON.stringify(config),
+      stamp = physicsStamp(config, model);
     const job = new Worker(
       new URL("../workers/analysis.worker.ts", import.meta.url),
       { type: "module" },
@@ -65,11 +78,15 @@ export function useAnalysis() {
         setResultConfig(stamp);
         if (kind === "solve") {
           setCandidates(d.result as Candidate[]);
-          setCandidateConfig(stamp);
+          setCandidateConfig(configJSON);
+          setCandidateModel(model);
         }
         if (
           kind === "coverage" &&
-          JSON.stringify(useStore.getState().config) === stamp
+          physicsStamp(
+            useStore.getState().config,
+            useStore.getState().bounceSettings,
+          ) === stamp
         )
           useStore.getState().set({
             coverage: d.result as CoverageCell[],
@@ -77,18 +94,24 @@ export function useAnalysis() {
           });
         if (
           kind === "coverage" &&
-          JSON.stringify(useStore.getState().config) !== stamp
+          physicsStamp(
+            useStore.getState().config,
+            useStore.getState().bounceSettings,
+          ) !== stamp
         )
           setError(
             "Coverage finished for an earlier configuration. Run again to display a matching heatmap.",
           );
         if (kind === "monteCarlo") {
           setMC(d.result as MonteCarlo);
-          setMCConfig(stamp);
+          setMCConfig(configJSON);
+          setMCModel(model);
         }
         if (kind === "calibrate") {
           setFit(d.result as CalibrationResult);
-          setFitConfig(stamp);
+          setFitMeasurements(measurements);
+          setFitConfig(configJSON);
+          setFitModel(model);
         }
         setProgress(1);
         cancel();
@@ -102,6 +125,7 @@ export function useAnalysis() {
     job.postMessage({
       kind,
       config,
+      ballModel: model,
       spacing,
       count,
       seed,
@@ -127,12 +151,16 @@ export function useAnalysis() {
     setUncertainty,
     measurements,
     setMeasurements,
+    fitMeasurements,
     parameters,
     setParameters,
     resultConfig,
     candidateConfig,
     mcConfig,
     fitConfig,
+    candidateModel,
+    mcModel,
+    fitModel,
     run,
     cancel,
   };

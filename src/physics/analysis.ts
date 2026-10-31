@@ -8,8 +8,13 @@ import {
   sampleAt,
   targetBasis,
 } from "./flight";
-import { simulateShooter, spinVector } from "./shooter";
+import { simulateShooter, spinVector, wheelSpeeds } from "./shooter";
 import { dot, norm, sub, clamp } from "./math";
+import {
+  launchInertia,
+  physicsStamp,
+  type BallModelSettings,
+} from "./launchDynamics";
 export interface Candidate {
   angle: number;
   omega: number;
@@ -49,6 +54,7 @@ export function solve(
   input: Config,
   progress: Progress = () => {},
   fast = false,
+  ballModel?: BallModelSettings,
 ): Candidate[] {
   const c = aim(input),
     results: Candidate[] = [];
@@ -56,10 +62,14 @@ export function solve(
   const { origin, yaw } = shooterPose(c);
   const direction: Vec3 = [Math.cos(yaw), Math.sin(yaw), 0];
   const target = c.field.target;
+  const inertia = launchInertia(c, ballModel);
   const trial = (omega: number, angle: number) => {
     c.shooter.primary.omega = omega;
     c.shooter.hoodAngle = angle;
-    const s = simulateShooter(c);
+    const s = simulateShooter(c, inertia);
+    if (!s.exited) return { residual: -Infinity, speed: s.speed };
+    if (s.speed > c.simulation.maxSpeed)
+      return { residual: Infinity, speed: s.speed };
     const pitch = angle + c.shooter.hoodOffset;
     const velocity: Vec3 = [
       s.speed * Math.cos(pitch) * Math.cos(yaw),
@@ -69,7 +79,17 @@ export function solve(
     if (c.robot.inheritVelocity)
       for (let j = 0; j < 3; j++) velocity[j] += c.robot.velocity[j];
     const spin = spinVector(yaw, s.spin);
-    const f = flight(origin, velocity, spin, c, false);
+    const f = flight(
+      origin,
+      velocity,
+      spin,
+      c,
+      false,
+      [],
+      inertia,
+      ballModel,
+      true,
+    );
     const { n: normal } = targetBasis(target);
     let residual = -norm(sub(origin, target.center));
     for (let i = 1; i < f.samples.length; i++) {
@@ -99,7 +119,7 @@ export function solve(
     }
     c.shooter.primary.omega = (lo + hi) / 2;
     c.shooter.hoodAngle = angle;
-    const shot = simulate(c),
+    const shot = simulate(c, inertia, ballModel),
       e = shot.flight.entry,
       apex = shot.flight.apex;
     if (
@@ -140,6 +160,7 @@ export function coverage(
   c: Config,
   spacing: number,
   progress: Progress,
+  ballModel?: BallModelSettings,
 ): CoverageCell[] {
   const cells: CoverageCell[] = [];
   const half = c.field.size / 2,
@@ -158,7 +179,7 @@ export function coverage(
       q.robot.y = -half + margin + j * spacing;
       const candidate = robotOverlapsObstacle(q.robot.x, q.robot.y)
         ? null
-        : (solve(q, () => {}, true)[0] ?? null);
+        : (solve(q, () => {}, true, ballModel)[0] ?? null);
       cells.push({ x: q.robot.x, y: q.robot.y, candidate });
       progress((i * count + j + 1) / (count * count));
     }
@@ -246,6 +267,7 @@ export function monteCarlo(
   u: Uncertainty,
   seed: number,
   progress: Progress,
+  ballModel?: BallModelSettings,
 ): MonteCarlo {
   const random = seededRandom(seed);
   const gaussian = () =>
@@ -284,7 +306,7 @@ export function monteCarlo(
     q.environment.wind = q.environment.wind.map(
       (x) => x + gaussian() * u.wind,
     ) as Vec3;
-    const s = simulate(q);
+    const s = simulate(q, launchInertia(q, ballModel), ballModel);
     if (s.flight.entry) {
       hits++;
       entries.push(s.flight.entry.local);
@@ -308,6 +330,8 @@ export interface Measurement {
   split: "training" | "validation";
   primaryRPM: number;
   secondaryRPM: number;
+  /** Extra hood rollers, in configured order; omission retains their commands. */
+  rollerRPMs?: number[];
   hoodDeg: number;
   exitVelocity?: number;
   spinRPM?: number;
@@ -330,6 +354,8 @@ export interface CalibrationResult {
   validationCount: number;
   iterations: number;
   warnings: string[];
+  validationPassed: boolean;
+  validationMaxError: number | null;
 }
 export function applyParameters(c: Config, params: FitParameter[]) {
   const q = structuredClone(c);
@@ -354,35 +380,271 @@ export function applyParameters(c: Config, params: FitParameter[]) {
   }
   return q;
 }
-function residuals(c: Config, rows: Measurement[]) {
+/** RPM observations describe the configured mechanism; they never disconnect
+ * a geared shaft or change a surface-speed command into independent wheels. */
+export function measurementConfig(c: Config, row: Measurement) {
+  const q = structuredClone(c);
+  q.shooter.primary.omega = (row.primaryRPM * 2 * Math.PI) / 60;
+  const secondary = (row.secondaryRPM * 2 * Math.PI) / 60;
+  q.shooter.secondary.omega = secondary;
+  if (row.rollerRPMs !== undefined) {
+    if (
+      !Array.isArray(row.rollerRPMs) ||
+      row.rollerRPMs.length !== q.shooter.rollers.length ||
+      row.rollerRPMs.some((v) => !Number.isFinite(v) || v < 0)
+    )
+      throw new Error(
+        `Measurement ${row.id}: supply one finite nonnegative RPM per extra hood roller.`,
+      );
+    q.shooter.rollers.forEach((roller, i) => {
+      roller.omega = (row.rollerRPMs![i] * Math.PI) / 30;
+    });
+  }
+  const expectedRPM = (wheelSpeeds(q)[1] * 30) / Math.PI;
+  if (
+    (q.shooter.link !== "independent" || q.shooter.topology === "passive") &&
+    Math.abs(expectedRPM - row.secondaryRPM) > 1 + 1e-9
+  )
+    throw new Error(
+      `Measurement ${row.id}: hood RPM conflicts with the configured ${q.shooter.link} coupling (expected ${expectedRPM.toFixed(1)} RPM). Check the mechanism or measured input settings.`,
+    );
+  if (
+    row.rollerRPMs &&
+    (q.shooter.link !== "independent" || q.shooter.topology === "passive")
+  ) {
+    const expected = wheelSpeeds(q)
+      .slice(2)
+      .map((w) => (w * 30) / Math.PI);
+    if (row.rollerRPMs.some((v, i) => Math.abs(v - expected[i]) > 1 + 1e-9))
+      throw new Error(
+        `Measurement ${row.id}: extra hood RPM conflicts with the configured coupling.`,
+      );
+  }
+  q.shooter.hoodAngle = (row.hoodDeg * Math.PI) / 180;
+  if (row.robot) q.robot = structuredClone(row.robot);
+  return q;
+}
+function residuals(
+  c: Config,
+  rows: Measurement[],
+  ballModel?: BallModelSettings,
+  unavailable: string[] = [],
+) {
   const residual: number[] = [];
   for (const row of rows) {
-    const q = structuredClone(c);
-    q.shooter.primary.omega = (row.primaryRPM * 2 * Math.PI) / 60;
-    q.shooter.secondary.omega = (row.secondaryRPM * 2 * Math.PI) / 60;
-    q.shooter.link = "independent";
-    q.shooter.hoodAngle = (row.hoodDeg * Math.PI) / 180;
-    if (row.robot) q.robot = row.robot;
-    const s = simulate(q);
+    const q = measurementConfig(c, row);
+    const inertia = launchInertia(q, ballModel);
+    const s = simulate(q, inertia, ballModel);
+    if (!s.shooter.exited) {
+      unavailable.push(`${row.id}: ball did not exit the shooter.`);
+      const observations =
+        Number(row.exitVelocity !== undefined) +
+        Number(row.spinRPM !== undefined) +
+        (row.impact ? 3 : 0);
+      residual.push(...Array<number>(observations).fill(1e6));
+      continue;
+    }
     if (row.exitVelocity !== undefined)
       residual.push((s.shooter.speed - row.exitVelocity) / 0.1);
     if (row.spinRPM !== undefined)
       residual.push(((s.shooter.spin * 60) / (2 * Math.PI) - row.spinRPM) / 50);
     if (row.impact && row.time !== undefined) {
-      const f = flight(s.origin, s.velocity, s.spin, q, false);
+      const f = flight(
+        s.origin,
+        s.velocity,
+        s.spin,
+        q,
+        false,
+        [],
+        inertia,
+        ballModel,
+      );
+      const end = f.samples.at(-1)!.t;
+      if (row.time > end + 1e-9) {
+        unavailable.push(
+          `${row.id}: no predicted position at ${row.time.toFixed(3)} s; free flight ended at ${end.toFixed(3)} s. Supply a pre-impact observation or use a model that resolves the later motion.`,
+        );
+        residual.push(1e6, 1e6, 1e6);
+        continue;
+      }
       const p = sampleAt(f.samples, row.time).p;
       for (let j = 0; j < 3; j++) residual.push((p[j] - row.impact[j]) / 0.01);
     }
   }
   return residual;
 }
+export const MEASUREMENT_LIMITS = { rows: 500, idLength: 100, rpm: 50_000 };
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+const finite = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v);
+
+/** One validator for pasted, stored and shared measurement rows. */
+export function parseMeasurements(value: unknown, maxTime = 30): Measurement[] {
+  if (!Array.isArray(value) || value.length === 0)
+    throw new Error("Enter at least one measured shot.");
+  if (value.length > MEASUREMENT_LIMITS.rows)
+    throw new Error(
+      `At most ${MEASUREMENT_LIMITS.rows} measured shots are accepted.`,
+    );
+  const ids = new Set<string>();
+  return value.map((raw, index) => {
+    const at = `Row ${index + 1}`;
+    if (!isRecord(raw)) throw new Error(`${at}: expected an object.`);
+    const {
+      id,
+      split,
+      primaryRPM,
+      secondaryRPM,
+      rollerRPMs,
+      hoodDeg,
+      exitVelocity,
+      spinRPM,
+      impact,
+      time,
+      robot,
+    } = raw;
+    if (
+      typeof id !== "string" ||
+      !id.trim() ||
+      id.length > MEASUREMENT_LIMITS.idLength
+    )
+      throw new Error(`${at}: id must be a nonempty string (≤100 chars).`);
+    if (ids.has(id)) throw new Error(`${at}: duplicate id "${id}".`);
+    ids.add(id);
+    if (split !== "training" && split !== "validation")
+      throw new Error(`${id}: split must be "training" or "validation".`);
+    const rpm = (v: unknown) =>
+      finite(v) && v >= 0 && v <= MEASUREMENT_LIMITS.rpm;
+    if (!rpm(primaryRPM) || !rpm(secondaryRPM))
+      throw new Error(
+        `${id}: primaryRPM/secondaryRPM must be finite, 0…${MEASUREMENT_LIMITS.rpm}.`,
+      );
+    if (
+      rollerRPMs !== undefined &&
+      (!Array.isArray(rollerRPMs) || !rollerRPMs.every(rpm))
+    )
+      throw new Error(`${id}: rollerRPMs must be finite RPM values.`);
+    if (!finite(hoodDeg) || Math.abs(hoodDeg) > 180)
+      throw new Error(`${id}: hoodDeg must be finite, −180…180.`);
+    if (
+      exitVelocity !== undefined &&
+      (!finite(exitVelocity) || exitVelocity < 0 || exitVelocity > 100)
+    )
+      throw new Error(`${id}: exitVelocity must be finite, 0…100 m/s.`);
+    if (spinRPM !== undefined && (!finite(spinRPM) || Math.abs(spinRPM) > 1e5))
+      throw new Error(`${id}: spinRPM must be finite, |spin| ≤ 100000.`);
+    if (impact !== undefined) {
+      if (
+        !Array.isArray(impact) ||
+        impact.length !== 3 ||
+        !impact.every(finite)
+      )
+        throw new Error(`${id}: impact must be finite [x, y, z].`);
+      if (!finite(time) || time <= 0 || time > maxTime)
+        throw new Error(
+          `${id}: impact requires a measured time within the integration horizon.`,
+        );
+    } else if (time !== undefined)
+      throw new Error(`${id}: time is only meaningful with impact.`);
+    if (
+      exitVelocity === undefined &&
+      spinRPM === undefined &&
+      impact === undefined
+    )
+      throw new Error(
+        `${id}: each row needs at least one observed measurement.`,
+      );
+    if (robot !== undefined && !isRecord(robot))
+      throw new Error(`${id}: robot must be a RobotConfig object.`);
+    return structuredClone<Measurement>({
+      id,
+      split,
+      primaryRPM: primaryRPM as number,
+      secondaryRPM: secondaryRPM as number,
+      ...(rollerRPMs !== undefined
+        ? { rollerRPMs: rollerRPMs as number[] }
+        : {}),
+      hoodDeg,
+      ...(exitVelocity !== undefined ? { exitVelocity } : {}),
+      ...(spinRPM !== undefined ? { spinRPM } : {}),
+      ...(impact !== undefined
+        ? { impact: impact as Vec3, time: time as number }
+        : {}),
+      ...(robot !== undefined
+        ? { robot: robot as unknown as Config["robot"] }
+        : {}),
+    });
+  });
+}
+
+/** Fingerprint of everything that determines a predicted shot, minus name and the badge flag. */
+export function calibrationStamp(c: Config, ballModel: BallModelSettings) {
+  // 2×32-bit FNV-1a: a compact consistency check for files/links, not a security hash.
+  const text = physicsStamp({ ...c, name: "", calibrated: false }, ballModel);
+  let a = 0x811c9dc5,
+    b = 0x01000193 ^ 0x5bd1e995;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charCodeAt(i);
+    a = Math.imul(a ^ ch, 0x01000193) >>> 0;
+    b = Math.imul(b ^ ch, 0x5bd1e995) >>> 0;
+  }
+  return `v1-${a.toString(16).padStart(8, "0")}${b.toString(16).padStart(8, "0")}`;
+}
+
+export interface CalibrationVerification {
+  validationCount: number;
+  validationRMSE: number | null;
+  validationMaxError: number | null;
+  unavailable: string[];
+  passed: boolean;
+}
+/**
+ * Re-evaluate stored held-out measurements against the *current* model, with
+ * the same thresholds as `calibrate`. Never trusts a stored pass/fail flag.
+ */
+export function verifyCalibration(
+  c: Config,
+  rows: Measurement[],
+  ballModel?: BallModelSettings,
+): CalibrationVerification {
+  const validation = rows.filter((r) => r.split === "validation");
+  const unavailable: string[] = [];
+  const r = residuals(c, validation, ballModel, unavailable);
+  const validationRMSE = r.length
+    ? Math.sqrt(r.reduce((s, x) => s + x * x, 0) / r.length)
+    : null;
+  const validationMaxError = r.length ? Math.max(...r.map(Math.abs)) : null;
+  return {
+    validationCount: validation.length,
+    validationRMSE,
+    validationMaxError,
+    unavailable,
+    passed:
+      validation.length > 0 &&
+      unavailable.length === 0 &&
+      validationRMSE !== null &&
+      validationRMSE <= 1 &&
+      validationMaxError !== null &&
+      validationMaxError <= 2,
+  };
+}
 export function calibrate(
   c: Config,
   rows: Measurement[],
   params: FitParameter[],
   progress: Progress,
+  ballModel?: BallModelSettings,
 ): CalibrationResult {
   for (const row of rows) {
+    if (
+      row.exitVelocity === undefined &&
+      row.spinRPM === undefined &&
+      !row.impact
+    )
+      throw new Error(
+        "Each calibration row needs at least one observed measurement.",
+      );
     if (
       ![row.primaryRPM, row.secondaryRPM, row.hoodDeg].every(Number.isFinite) ||
       row.primaryRPM < 0 ||
@@ -435,7 +697,7 @@ export function calibrate(
     throw new Error("Impact measurements require time in seconds.");
   const p = structuredClone(params);
   const objective = (p: FitParameter[]) => {
-    const r = residuals(applyParameters(c, p), training);
+    const r = residuals(applyParameters(c, p), training, ballModel);
     if (!r.length) throw new Error("Measurements contain no observed values.");
     return (
       r.reduce(
@@ -469,7 +731,7 @@ export function calibrate(
     if (steps.every((s, j) => s / (p[j].max - p[j].min) < 1e-5)) break;
   }
   const rmse = (data: Measurement[]) => {
-    const r = residuals(applyParameters(c, p), data);
+    const r = residuals(applyParameters(c, p), data, ballModel);
     return r.length
       ? Math.sqrt(r.reduce((s, x) => s + x * x, 0) / r.length)
       : null;
@@ -484,10 +746,37 @@ export function calibrate(
   for (const x of p)
     if (Math.abs(x.value - x.min) < 1e-4 || Math.abs(x.value - x.max) < 1e-4)
       warnings.push(`${x.key} reached a parameter bound.`);
+  const trainingUnavailable: string[] = [],
+    validationUnavailable: string[] = [];
+  residuals(applyParameters(c, p), training, ballModel, trainingUnavailable);
+  const validationResiduals = residuals(
+    applyParameters(c, p),
+    validation,
+    ballModel,
+    validationUnavailable,
+  );
+  const validationRMSE = rmse(validation);
+  const validationMaxError = validationResiduals.length
+    ? Math.max(...validationResiduals.map(Math.abs))
+    : null;
+  const validationPassed =
+    trainingUnavailable.length === 0 &&
+    validationUnavailable.length === 0 &&
+    validationRMSE !== null &&
+    validationRMSE <= 1 &&
+    validationMaxError !== null &&
+    validationMaxError <= 2;
+  if (validation.length && !validationPassed)
+    warnings.push(
+      "Held-out errors exceed the validation limits: normalized RMSE ≤ 1 and every residual ≤ 2.",
+    );
+  warnings.push(...trainingUnavailable, ...validationUnavailable);
   return {
     parameters: p,
     trainingRMSE: rmse(training)!,
-    validationRMSE: rmse(validation),
+    validationRMSE,
+    validationPassed,
+    validationMaxError,
     trainingCount: training.length,
     validationCount: validation.length,
     iterations: iteration + 1,

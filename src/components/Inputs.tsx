@@ -105,16 +105,18 @@ export function Select({
   label,
   path,
   options,
+  hideLabel = false,
 }: {
   label: string;
   path: string;
   options: [string, string][];
+  hideLabel?: boolean;
 }) {
   const value = useStore((s) => getPath(s.config, path)),
     edit = useStore((s) => s.edit);
   return (
     <label className="select-control">
-      {label}
+      <span className={hideLabel ? "sr-only" : undefined}>{label}</span>
       <select
         aria-label={label}
         value={String(value)}

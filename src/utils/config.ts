@@ -1,5 +1,7 @@
 import type { Config } from "../physics/types";
 import { current } from "../presets";
+import { obstaclePurpose } from "../field/obstacles";
+import type { Box } from "../physics/types";
 /** Reject malformed/non-finite profiles before they can reach the numerical integrator. */
 export function parseConfig(value: unknown): Config {
   function check(v: unknown, template: unknown, path: string) {
@@ -14,12 +16,15 @@ export function parseConfig(value: unknown): Config {
         template.length &&
         !path.endsWith("forceCurve") &&
         !path.endsWith("rollers") &&
+        !path.endsWith("obstacles") &&
         v.length !== template.length
       )
         throw new Error(`${path}: invalid array length`);
       v.forEach((item, i) => {
         const example =
-          path.endsWith("forceCurve") || path.endsWith("rollers")
+          path.endsWith("forceCurve") ||
+          path.endsWith("rollers") ||
+          path.endsWith("obstacles")
             ? template[0]
             : template[i];
         if (example !== undefined) check(item, example, `${path}.${i}`);
@@ -43,8 +48,50 @@ export function parseConfig(value: unknown): Config {
     )
       throw new Error(`${path}: invalid value`);
   }
+  // Add new fields to copies, preserving saved models and explicit user ratios.
+  if (typeof value === "object" && value !== null) {
+    value = structuredClone(value);
+    const q = value as Record<string, unknown>;
+    const field = q.field as Record<string, unknown> | undefined;
+    if (field && typeof field === "object") {
+      if (field.hiveStructure === undefined) field.hiveStructure = true;
+      if (Array.isArray(field.obstacles))
+        for (const box of field.obstacles)
+          if (box && typeof box === "object" && box.purpose === undefined)
+            box.purpose = obstaclePurpose(box as Box);
+    }
+    const aero = q.aero as Record<string, unknown> | undefined;
+    if (aero && typeof aero === "object" && !("liftModel" in aero))
+      aero.liftModel = "linear";
+    const s = q.shooter as Record<string, unknown> | undefined;
+    if (s && typeof s === "object" && !("surfaceRatioVersion" in s)) {
+      const primary = s.primary as Record<string, unknown> | undefined;
+      const secondary = s.secondary as Record<string, unknown> | undefined;
+      // Only repair the dormant, recognizable old factory default. A saved
+      // surface-mode ratio or a custom profile may be deliberate.
+      if (
+        q.name === current.name &&
+        s.link === "gear" &&
+        s.surfaceRatio === 3.75 &&
+        secondary?.ratio === 3.75 &&
+        primary?.diameter === 0.096 &&
+        secondary?.diameter === 0.0254 &&
+        Array.isArray(s.rollers) &&
+        s.rollers.length === 2
+      )
+        s.surfaceRatio = 1;
+      s.surfaceRatioVersion = 1;
+    }
+  }
   check(value, current, "profile");
   const c = value as Config;
+  // Old profiles store only a boolean, not the measurements or validation
+  // result. Retain their parameters but require a fresh measured validation.
+  c.calibrated = false;
+  // Diameter is authoritative. Keep the legacy radius alias consistent when
+  // reading profiles that saved these two fields independently.
+  for (const roller of [c.shooter.secondary, ...c.shooter.rollers])
+    roller.radius = roller.diameter / 2;
   if (c.version !== 1) throw new Error("Unsupported profile version");
   const positive = [
     c.projectile.diameter,
@@ -130,6 +177,8 @@ export function parseConfig(value: unknown): Config {
       )
     )
       throw new Error("Invalid obstacle bounds.");
+    if (!["solid", "robot-exclusion", "hive-proxy"].includes(box.purpose!))
+      throw new Error("Invalid obstacle purpose.");
   }
   for (const pair of c.shooter.forceCurve)
     if (
@@ -174,6 +223,7 @@ export function parseConfig(value: unknown): Config {
     [c.shooter.link, ["independent", "gear", "surface"]],
     [c.shooter.normalModel, ["linear", "table"]],
     [c.projectile.model, ["sphere", "calibrated"]],
+    [c.aero.liftModel, ["linear", "sawicki"]],
     [
       c.simulation.objective,
       ["energy", "rpm", "clearance", "robustness", "time"],
@@ -193,6 +243,8 @@ export function parseConfig(value: unknown): Config {
     c.shooter.compression < 0 ||
     c.shooter.hysteresis < 0 ||
     c.shooter.hysteresis >= 1 ||
+    c.shooter.surfaceRatio < 0 ||
+    c.shooter.surfaceRatioVersion !== 1 ||
     (c.projectile.inertia !== null && c.projectile.inertia <= 0)
   )
     throw new Error("Nonphysical coefficient.");

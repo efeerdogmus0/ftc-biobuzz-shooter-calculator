@@ -6,17 +6,27 @@ import { aim } from "../physics/flight";
 import { toDeg, toRPM } from "../utils/units";
 import {
   applyParameters,
+  calibrationStamp,
+  parseMeasurements,
   type FitParameter,
-  type Measurement,
   type Uncertainty,
 } from "../physics/analysis";
 import { downloadJSON } from "../utils/config";
-export function AnalysisPanel({ a }: { a: AnalysisState }) {
+import { ballModelSettings, physicsStamp } from "../physics/launchDynamics";
+const MEASUREMENT_TEXT_LIMIT = 512 * 1024;
+export function AnalysisPanel({
+  a,
+  openTool,
+}: {
+  a: AnalysisState;
+  openTool: (tool: string) => void;
+}) {
   const s = useStore(),
     c = s.config;
   const [data, setData] = useState(JSON.stringify(a.measurements, null, 2)),
     [dataError, setDataError] = useState("");
-  const stale = a.resultConfig && a.resultConfig !== JSON.stringify(c);
+  const stale =
+    a.resultConfig && a.resultConfig !== physicsStamp(c, s.bounceSettings);
   const prepare = (
     key: FitParameter["key"],
     min: number,
@@ -33,6 +43,15 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
   return (
     <>
       <div className="control-heading">ANALYSIS WORKBENCH</div>
+      <div className="analysis-tool-links">
+        <button onClick={() => openTool("clearance")}>
+          Shooter clearance…
+        </button>
+        <button onClick={() => openTool("study")}>Shot angle study…</button>
+        <button onClick={() => openTool("legacy")}>
+          DECODE reference data…
+        </button>
+      </div>
       {a.busy && (
         <div className="job">
           <span>
@@ -137,6 +156,10 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
               );
               q.shooter.hoodAngle = x.angle;
               q.shooter.primary.omega = x.omega;
+              if (a.candidateModel)
+                s.set({
+                  bounceSettings: { ...s.bounceSettings, ...a.candidateModel },
+                });
               s.setConfig(q);
             }}
           >
@@ -330,47 +353,30 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
           Paste a JSON array of measured shots. Each row: id, split
           (training/validation), primaryRPM, secondaryRPM, hoodDeg, exitVelocity
           (m/s), spinRPM. Optional impact [X,Y,Z] requires time (s). Optional
-          robot pose captures a different shot location.
+          robot pose captures a different shot location. Linked hood RPM must
+          match the configured ratio within 1 RPM; calibration keeps that
+          linkage. Optional rollerRPMs lists the extra hood speeds in order;
+          omitted extra speeds retain the configured commands. Timed positions
+          must precede the end of predicted free flight.
         </p>
         <textarea
           aria-label="Calibration measurements JSON"
           rows={10}
           value={data}
           onChange={(e) => setData(e.target.value)}
-          placeholder='[{"id":"shot-1","split":"training","primaryRPM":2300,"secondaryRPM":10350,"hoodDeg":65,"exitVelocity":7.1}]'
+          placeholder='[{"id":"shot-1","split":"training","primaryRPM":1700,"secondaryRPM":6375,"rollerRPMs":[6375,6375],"hoodDeg":65,"exitVelocity":7.1}]'
         />
         <button
           onClick={() => {
             try {
-              const rows = JSON.parse(data) as Measurement[];
-              if (!Array.isArray(rows) || rows.length === 0)
-                throw new Error("Enter at least one measured shot.");
-              for (const r of rows) {
-                if (
-                  !["training", "validation"].includes(r.split) ||
-                  ![r.primaryRPM, r.secondaryRPM, r.hoodDeg].every(
-                    Number.isFinite,
-                  )
-                )
-                  throw new Error(
-                    "Each shot needs valid split, RPMs and hoodDeg.",
-                  );
-                if (
-                  r.exitVelocity === undefined &&
-                  r.spinRPM === undefined &&
-                  !r.impact
-                )
-                  throw new Error(
-                    "Each row needs at least one observed measurement.",
-                  );
-                if (
-                  r.impact &&
-                  (!Number.isFinite(r.time) ||
-                    r.impact.length !== 3 ||
-                    !r.impact.every(Number.isFinite))
-                )
-                  throw new Error("Impact requires XYZ and measured time.");
-              }
+              if (data.length > MEASUREMENT_TEXT_LIMIT)
+                throw new Error(
+                  `Measurement JSON exceeds ${MEASUREMENT_TEXT_LIMIT / 1024} kB.`,
+                );
+              const rows = parseMeasurements(
+                JSON.parse(data),
+                c.simulation.maxTime,
+              );
               a.setMeasurements(rows);
               setDataError(`${rows.length} measured shots loaded.`);
             } catch (e) {
@@ -437,6 +443,15 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
               {a.fit.validationRMSE?.toFixed(3) ?? "not supplied"}{" "}
               <small>(normalized)</small>
             </p>
+            <p className={a.fit.validationPassed ? "muted" : "notice"}>
+              {a.fit.validationPassed
+                ? "Measured fit validated."
+                : "Fit has not passed held-out validation."}{" "}
+              Requires measured outcomes in every row, validation RMSE ≤ 1 and
+              maximum normalized error ≤ 2. This validates only the supplied
+              launch/flight observations, not HIVE retention or bounce
+              materials.
+            </p>
             {a.fit.warnings.map((w) => (
               <p className="notice" key={w}>
                 {w}
@@ -448,8 +463,22 @@ export function AnalysisPanel({ a }: { a: AnalysisState }) {
                   a.fitConfig ? JSON.parse(a.fitConfig) : c,
                   a.fit!.parameters,
                 );
-                q.calibrated = a.fit!.validationCount > 0;
+                const bounceSettings = a.fitModel
+                  ? { ...s.bounceSettings, ...a.fitModel }
+                  : s.bounceSettings;
+                if (a.fitModel) s.set({ bounceSettings });
+                // The badge is recomputed from these measurements; no stored pass flag.
+                q.calibrated = false;
                 s.setConfig(q);
+                s.set({
+                  calibration: {
+                    stamp: calibrationStamp(
+                      q,
+                      ballModelSettings(bounceSettings),
+                    ),
+                    measurements: a.fitMeasurements,
+                  },
+                });
               }}
             >
               Apply fitted parameters

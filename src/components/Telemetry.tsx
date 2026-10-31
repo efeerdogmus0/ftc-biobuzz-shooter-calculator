@@ -1,16 +1,23 @@
+import { bouncePalette } from "../utils/bounceView";
 import { useState, useEffect, useRef } from "react";
 import type { Shot } from "../physics/types";
 import { toRPM, toDeg } from "../utils/units";
 import { norm } from "../physics/math";
-import { aerodynamicForces } from "../physics/aerodynamics";
-import { ballInertia } from "../physics/shooter";
+import { sampleAerodynamics } from "../physics/aerodynamics";
+import { shotKineticEnergy } from "../physics/launchDynamics";
+import { shapeAxes } from "../physics/pollenShape";
 export function Telemetry({ shot }: { shot: Shot }) {
   const [chart, setChart] = useState("Trajectory"),
     [hover, setHover] = useState<number | null>(null);
   const f = shot.flight,
     c = shot.config;
   const data = f.samples.map((p) => {
-    const forces = aerodynamicForces(p.v, p.spin, c);
+    const forces = sampleAerodynamics(
+      p,
+      c,
+      f.aeroAxes ??
+        (f.diagnostics ? shapeAxes(f.diagnostics.settings) : undefined),
+    );
     const y =
       chart === "Trajectory"
         ? p.p[2]
@@ -24,8 +31,7 @@ export function Telemetry({ shot }: { shot: Shot }) {
                 ? norm(forces.drag) / c.projectile.mass
                 : chart === "Magnus acceleration"
                   ? norm(forces.lift) / c.projectile.mass
-                  : 0.5 * c.projectile.mass * norm(p.v) ** 2 +
-                    0.5 * ballInertia(c) * norm(p.spin) ** 2;
+                  : shotKineticEnergy(shot, p);
     return {
       x:
         chart === "Trajectory"
@@ -107,12 +113,24 @@ export function Telemetry({ shot }: { shot: Shot }) {
             </text>
           </g>
         ))}
-        <polyline
-          points={data.map(point).join(" ")}
-          fill="none"
-          stroke="#e1bd7d"
-          strokeWidth="2.2"
-        />
+        {(f.bounces?.length
+          ? [0, ...f.bounces.map((e) => e.t), Infinity]
+          : [0, Infinity]
+        )
+          .slice(0, -1)
+          .map((start, i) => {
+            const end = f.bounces?.[i]?.t ?? Infinity;
+            const segment = data.filter((d) => d.t >= start && d.t <= end);
+            return (
+              <polyline
+                key={i}
+                points={segment.map(point).join(" ")}
+                fill="none"
+                stroke={bouncePalette[i % bouncePalette.length]}
+                strokeWidth="2.4"
+              />
+            );
+          })}
         {[0, 0.25, 0.5, 0.75, 1].map((v) => (
           <text key={v} x={40 + 540 * v} y="148">
             {(xmax * v).toFixed(2)}

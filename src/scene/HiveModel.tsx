@@ -1,14 +1,22 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
-import { Matrix4, Quaternion, Vector3 } from "three";
-import type { TargetConfig, Vec3 } from "../physics/types";
 import {
-  targetBasis,
-  targetOpeningPoints,
-  targetWorld,
-} from "../physics/flight";
+  Matrix4,
+  Quaternion,
+  Vector3,
+  Shape,
+  DoubleSide,
+  Vector2,
+  type Group,
+} from "three";
+import type { TargetConfig, Vec3, Shot } from "../physics/types";
+import { sampleHive } from "../physics/hiveDynamics";
+import { targetBasis, targetOpeningPoints } from "../physics/flight";
 import { hiveCells, hiveCellTarget } from "../field/hiveGeometry";
 import { useStore } from "../state/store";
+import { cellSurfaces } from "../physics/cellGeometry";
+import { hiveStructure } from "../field/hiveStructure";
 
 /** Rectangular structural member, with its length along local Y. */
 function Beam({
@@ -52,19 +60,31 @@ function Cell({ target, color }: { target: TargetConfig; color: string }) {
     );
   }, [target]);
   const outline = targetOpeningPoints(target);
-  // Frame thickness is a visual approximation; the inner opening retains the
-  // manual's dimensions and stays aligned with the scoring plane at local Z=0.
-  const rim = 0.012;
+  const rim = target.thickness;
+  const bottomShape = new Shape(
+    outline.slice(0, -1).map((p) => new Vector2(p[0], p[1])),
+  );
+
   return (
     <group name="hive-cell" position={target.center} quaternion={quaternion}>
-      {outline.slice(0, -1).map((a, i) => {
-        const b = outline[i + 1];
-        const dx = b[0] - a[0],
-          dy = b[1] - a[1];
-        const length = Math.hypot(dx, dy);
-        const outward = [((dy / length) * rim) / 2, ((-dx / length) * rim) / 2];
-        const start: Vec3 = [a[0] + outward[0], a[1] + outward[1], 0];
-        const end: Vec3 = [b[0] + outward[0], b[1] + outward[1], 0];
+      <mesh name="CELL bottom panel" position={[0, 0, -target.depth - rim]}>
+        <extrudeGeometry
+          args={[bottomShape, { depth: rim, bevelEnabled: false }]}
+        />
+        <meshStandardMaterial
+          color="#c2e4ef"
+          side={DoubleSide}
+          transparent
+          opacity={0.23}
+          depthWrite={false}
+        />
+      </mesh>
+      {cellSurfaces(target).map((surface, i) => {
+        const half = (surface.size[0] - rim) / 2;
+        const dx = half * Math.cos(surface.angle),
+          dy = half * Math.sin(surface.angle);
+        const start: Vec3 = [surface.center[0] - dx, surface.center[1] - dy, 0];
+        const end: Vec3 = [surface.center[0] + dx, surface.center[1] + dy, 0];
         return (
           <group key={i}>
             {[0, -target.depth].map((z) => (
@@ -84,9 +104,11 @@ function Cell({ target, color }: { target: TargetConfig; color: string }) {
                 (start[1] + end[1]) / 2,
                 -target.depth / 2,
               ]}
-              rotation={[0, 0, Math.atan2(dy, dx) - Math.PI / 2]}
+              rotation={[0, 0, surface.angle]}
             >
-              <boxGeometry args={[0.003, length, target.depth]} />
+              <boxGeometry
+                args={[surface.size[0], surface.size[1], surface.size[2]]}
+              />
               <meshStandardMaterial
                 color="#dce7eb"
                 transparent
@@ -109,57 +131,100 @@ function Cell({ target, color }: { target: TargetConfig; color: string }) {
   );
 }
 
-export function HiveModel() {
+export function HiveModel({ shot }: { shot: Shot }) {
   const field = useStore((s) => s.config.field);
-  const h = field.hive;
+  const close = useStore((s) => s.view === "CELL" || s.view === "HIVE");
+  const structure = hiveStructure(field);
   const cells = hiveCells(field);
-  const x = h.frameWidth / 2,
-    y = h.frameDepth / 2,
-    z = h.pivotHeight;
+  const moving = useRef<Group>(null);
+  const axis = targetBasis(field.target).u;
+  const pivot: Vec3 = [field.target.center[0], 0, field.hive.pivotHeight];
+  useFrame(() => {
+    const h = sampleHive(
+      shot.flight.hiveTrack ?? [],
+      useStore.getState().playbackTime,
+    );
+    moving.current?.quaternion.setFromAxisAngle(
+      new Vector3(...axis),
+      h?.angle ?? 0,
+    );
+  });
   return (
     <group name="competition-hive">
-      {[-x, x].map((side) => (
-        <group key={side}>
-          <Beam a={[side, -y, 0.025]} b={[side, 0, z]} />
-          <Beam a={[side, y, 0.025]} b={[side, 0, z]} />
-          <Beam a={[side, -y, 0.025]} b={[side, y, 0.025]} width={0.035} />
-          {[-y, y].map((foot) => (
-            <mesh key={foot} position={[side, foot, 0.015]}>
-              <boxGeometry args={[0.075, 0.1, 0.03]} />
-              <meshStandardMaterial color="#444b50" />
-            </mesh>
-          ))}
+      {structure.beams
+        .filter((b) => !b.moving)
+        .map((beam) => (
+          <Beam key={beam.name} {...beam} />
+        ))}
+      {structure.feet.map((foot) => (
+        <mesh key={foot.name} position={foot.center}>
+          <boxGeometry args={foot.size} />
+          <meshStandardMaterial color="#444b50" />
+        </mesh>
+      ))}
+      {[false, true].map((blue) => (
+        <group
+          key={String(blue)}
+          ref={blue ? moving : undefined}
+          position={blue ? pivot : [0, 0, 0]}
+        >
+          <group position={blue ? (pivot.map((x) => -x) as Vec3) : [0, 0, 0]}>
+            {blue &&
+              structure.beams
+                .filter((b) => b.moving)
+                .map((beam) => <Beam key={beam.name} {...beam} />)}
+            {structure.hubs
+              .filter((h) => h.moving === blue)
+              .map((hub) => (
+                <mesh
+                  key={hub.name}
+                  position={hub.center}
+                  rotation={[0, 0, Math.PI / 2]}
+                >
+                  <cylinderGeometry
+                    args={[hub.radius, hub.radius, hub.length, 20]}
+                  />
+                  <meshStandardMaterial
+                    color="#626b70"
+                    metalness={0.6}
+                    roughness={0.4}
+                  />
+                </mesh>
+              ))}
+            {cells
+              .filter(
+                (cell) =>
+                  (cell.alliance === "BLUE") === blue &&
+                  (!close || cell.alliance === "BLUE"),
+              )
+              .map((cell) => {
+                const target = hiveCellTarget(cell, field);
+                return (
+                  <group key={cell.id}>
+                    <Cell
+                      target={target}
+                      color={cell.alliance === "BLUE" ? "#195ace" : "#cd242c"}
+                    />
+                  </group>
+                );
+              })}
+          </group>
         </group>
       ))}
-      <Beam a={[-x, 0, z]} b={[x, 0, z]} width={0.032} />
-      {cells.map((cell) => {
-        const target = hiveCellTarget(cell, field);
-        const mount = targetWorld(
-          [0, -target.height / 2 - 0.02, -target.depth / 2],
-          target,
-        );
-        const pivot: Vec3 = [cell.center[0], 0, z];
-        return (
-          <group key={cell.id}>
-            <Cell
-              target={target}
-              color={cell.alliance === "BLUE" ? "#195ace" : "#cd242c"}
-            />
-            <Beam a={pivot} b={mount} width={0.03} depth={0.035} />
-            <mesh position={pivot} rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.045, 0.045, 0.05, 20]} />
-              <meshStandardMaterial
-                color="#626b70"
-                metalness={0.6}
-                roughness={0.4}
-              />
-            </mesh>
-          </group>
-        );
-      })}
-      <Html position={[0, 0, z - 0.15]} center className="scene-label">
-        HIVE <span>30°</span>
+      <Html
+        position={[0, 0, field.hive.pivotHeight - 0.15]}
+        center
+        className="scene-label"
+      >
+        HIVE <HiveAngle shot={shot} />
       </Html>
     </group>
+  );
+}
+function HiveAngle({ shot }: { shot: Shot }) {
+  const time = useStore((s) => s.playbackTime),
+    h = sampleHive(shot.flight.hiveTrack ?? [], time);
+  return (
+    <span>{h ? ((h.angle * 180) / Math.PI - 30).toFixed(1) : "-30"}°</span>
   );
 }

@@ -1,14 +1,22 @@
 /// <reference lib="webworker" />
-import { solve, coverage, monteCarlo, calibrate } from "../physics/analysis";
+import {
+  solve,
+  coverage,
+  monteCarlo,
+  calibrate,
+  parseMeasurements,
+} from "../physics/analysis";
 import type {
   Uncertainty,
   Measurement,
   FitParameter,
 } from "../physics/analysis";
 import type { Config } from "../physics/types";
+import type { BallModelSettings } from "../physics/launchDynamics";
 export type AnalysisRequest = {
   kind: "solve" | "coverage" | "monteCarlo" | "calibrate";
   config: Config;
+  ballModel: BallModelSettings;
   spacing: number;
   count: number;
   seed: number;
@@ -28,12 +36,25 @@ self.onmessage = (event: MessageEvent<AnalysisRequest>) => {
   try {
     const result =
       r.kind === "solve"
-        ? solve(r.config, progress)
+        ? solve(r.config, progress, false, r.ballModel)
         : r.kind === "coverage"
-          ? coverage(r.config, r.spacing, progress)
+          ? coverage(r.config, r.spacing, progress, r.ballModel)
           : r.kind === "monteCarlo"
-            ? monteCarlo(r.config, r.count, r.uncertainty, r.seed, progress)
-            : calibrate(r.config, r.measurements, r.parameters, progress);
+            ? monteCarlo(
+                r.config,
+                r.count,
+                r.uncertainty,
+                r.seed,
+                progress,
+                r.ballModel,
+              )
+            : calibrate(
+                r.config,
+                parseMeasurements(r.measurements, r.config.simulation.maxTime),
+                r.parameters,
+                progress,
+                r.ballModel,
+              );
     postMessage({ type: "result", kind: r.kind, result });
   } catch (e) {
     postMessage({

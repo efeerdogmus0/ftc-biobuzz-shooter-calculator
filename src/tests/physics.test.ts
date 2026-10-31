@@ -124,6 +124,9 @@ describe("independent numerical physics", () => {
     const c = config();
     c.field.target.center = [0, 0, 1];
     c.field.target.tilt = 0;
+    // Keep the newly collidable opposite CELL below/away from this isolated
+    // vertical-entry fixture rather than above its opening.
+    c.field.hive.pivotHeight = 0.5;
     c.field.obstacles = [];
     const f = flight([0, 0, 2], [0, 0, -1], [0, 0, 0], c);
     expect(f.status).toBe("HIT");
@@ -132,6 +135,7 @@ describe("independent numerical physics", () => {
   });
   it("clips a ball grazing the opening edge", () => {
     const c = config();
+    c.field.hiveStructure = false;
     c.field.target.center = [0, 0, 1];
     c.field.target.tilt = 0;
     c.field.obstacles = [];
