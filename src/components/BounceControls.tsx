@@ -1,6 +1,7 @@
 import { ContactPhysics } from "./ContactPhysics";
 import { DynamicWorldControls } from "./DynamicWorldControls";
 import { ResidentPlacement } from "./ResidentPlacement";
+import { ForMode } from "./ForMode";
 import { residentPositions } from "../physics/collisionWorld";
 import { targetLocal, sampleAt } from "../physics/flight";
 import { useStore } from "../state/store";
@@ -126,8 +127,10 @@ export function BounceControls({ shot }: { shot: Shot }) {
           )}
         </span>
       </div>
-      <DynamicWorldControls shot={shot} />
-      <ContactPhysics shot={shot} />
+      <ForMode min="medium">
+        <DynamicWorldControls shot={shot} />
+        <ContactPhysics shot={shot} />
+      </ForMode>
       <div className="resident-scenario">
         <div>
           <label>CELL içinde başlangıçtaki top sayısı</label>
@@ -463,37 +466,41 @@ export function BounceControls({ shot }: { shot: Shot }) {
           </p>
         </div>
       )}
-      <details>
-        <summary>Tüm topların çarpışma tablosu</summary>
-        <div className="bounce-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Top</th>
-                <th>Yüzey / top</th>
-                <th>Zaman</th>
-                <th>Gelen → çıkan hız</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(f.worldEvents ?? events).map((e, i) => (
-                <tr key={i}>
-                  <td>{e.ballId === 0 ? "Atılan" : `İçerideki ${e.ballId}`}</td>
-                  <td>
-                    {e.surface === "Ball"
-                      ? `Top ${e.otherBallId === 0 ? "atılan" : e.otherBallId}`
-                      : (surfaceNames[e.surface] ?? e.surface)}
-                  </td>
-                  <td>{e.t.toFixed(2)} s</td>
-                  <td>
-                    {norm(e.v).toFixed(2)} → {norm(e.outgoing).toFixed(2)} m/s
-                  </td>
+      <ForMode min="hard">
+        <details>
+          <summary>Tüm topların çarpışma tablosu</summary>
+          <div className="bounce-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Top</th>
+                  <th>Yüzey / top</th>
+                  <th>Zaman</th>
+                  <th>Gelen → çıkan hız</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </details>
+              </thead>
+              <tbody>
+                {(f.worldEvents ?? events).map((e, i) => (
+                  <tr key={i}>
+                    <td>
+                      {e.ballId === 0 ? "Atılan" : `İçerideki ${e.ballId}`}
+                    </td>
+                    <td>
+                      {e.surface === "Ball"
+                        ? `Top ${e.otherBallId === 0 ? "atılan" : e.otherBallId}`
+                        : (surfaceNames[e.surface] ?? e.surface)}
+                    </td>
+                    <td>{e.t.toFixed(2)} s</td>
+                    <td>
+                      {norm(e.v).toFixed(2)} → {norm(e.outgoing).toFixed(2)} m/s
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </ForMode>
       <p className="bounce-note">
         Sıralı dizilimler yerleşim örnekleridir; gerçek birikme dizilimi olarak
         kabul edilmez. Elle yerleştirilen toplar atıştan önce yerçekimiyle

@@ -7,6 +7,7 @@ import { aim } from "../physics/flight";
 import { physicsStamp } from "../physics/launchDynamics";
 import { setPath } from "../utils/config";
 import { consumeResetRequest } from "../app/recovery";
+import { initialUiMode, UI_MODE_KEY, type UiMode } from "../app/uiMode";
 import {
   captureScenario,
   defaultScenario,
@@ -40,6 +41,9 @@ interface State extends ScenarioState {
   residentLayout: "center" | "left" | "right" | "manual";
   manualResidents: Vec3[];
   calibration: StoredCalibration | null;
+  /** Interface complexity; stored apart from the physical scenario. */
+  uiMode: UiMode;
+  setUiMode: (mode: UiMode) => void;
   showResidentPaths: boolean;
   selectedBounce: number;
   playbackTime: number;
@@ -90,6 +94,13 @@ function migrateLegacyShooter(c: Config) {
   q.shooter.surfaceRatio = current.shooter.surfaceRatio;
   return q;
 }
+let startMode: UiMode = "hard";
+try {
+  // Read before ?reset clears the active scenario, so a reset keeps the user's mode.
+  startMode = initialUiMode(localStorage);
+} catch {
+  /* No storage (tests/private mode): full workbench. */
+}
 try {
   if (typeof location !== "undefined")
     consumeResetRequest(location, localStorage, history);
@@ -124,6 +135,15 @@ export const useStore = create<State>((set, get) => ({
   residentLayout: initial.residentLayout,
   manualResidents: initial.manualResidents,
   calibration: initial.calibration ?? null,
+  uiMode: startMode,
+  setUiMode: (uiMode) => {
+    set({ uiMode });
+    try {
+      localStorage.setItem(UI_MODE_KEY, uiMode);
+    } catch {
+      /* Preference only; the session still switches. */
+    }
+  },
   showResidentPaths: true,
   selectedBounce: 0,
   playbackTime: 0,

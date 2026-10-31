@@ -1435,6 +1435,30 @@ td input {
   background: var(--panel);
   color: var(--text);
 }
+/* Interface-complexity switch: segmented, same density as the toolbar. */
+.mode-switch {
+  display: inline-flex;
+  border: 1px solid var(--line, #c9ced6);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 0 4px;
+}
+.mode-switch button {
+  border: 0;
+  border-radius: 0;
+  padding: 2px 8px;
+  font-size: 11px;
+  background: transparent;
+  width: auto;
+  min-width: 0;
+}
+.mode-switch button + button {
+  border-left: 1px solid var(--line, #c9ced6);
+}
+.mode-switch button.active {
+  background: var(--accent, #1f6feb);
+  color: #fff;
+}
 .scene-error .actions {
   display: flex;
   gap: 8px;

@@ -33,6 +33,7 @@ import {
   Link2,
 } from "lucide-react";
 import { useCalibrationBadge } from "./useCalibrationBadge";
+import { bottomTabsFor, propertyTabsFor, uiModes } from "./uiMode";
 import { decodeShare, encodeShare, isShareHash } from "../utils/share";
 import {
   WorkbenchMenu,
@@ -166,6 +167,14 @@ export default function App() {
     [modelJSON],
   );
   const result = usePreviewSimulation({ config: c, model });
+  // Modes hide controls only; they never edit the scenario.
+  const propertyTabs: readonly string[] = propertyTabsFor(s.uiMode);
+  const activeTab = propertyTabs.includes(tab) ? tab : propertyTabs[0];
+  const bottomTabs = bottomTabsFor(s.uiMode);
+  const activeBottom =
+    bottomTabs.includes(bottom) || bottom === "Shooter section"
+      ? bottom
+      : bottomTabs[0];
   const calibrationBadge = useCalibrationBadge(c, model, s.calibration);
   useEffect(() => {
     if (!isShareHash(location.hash)) return;
@@ -283,6 +292,14 @@ export default function App() {
             ? `Calibration check failed · ${fallbackBadge}`
             : fallbackBadge;
   const chooseTab = (name: string) => {
+    if (!propertyTabs.includes(name)) {
+      // An explicit request for a tool raises the interface level, visibly.
+      const needed = uiModes.find((m) => propertyTabsFor(m.id).includes(name));
+      if (needed) {
+        s.setUiMode(needed.id);
+        tell(`${name} için arayüz ${needed.label} moduna geçti.`);
+      }
+    }
     setTab(name);
     setPropertiesVisible(true);
     if (name === "Sekiş") s.set({ bounceEnabled: true, showTrajectory: true });
@@ -505,6 +522,25 @@ export default function App() {
           >
             <Link2 size={16} />
           </button>
+          <div
+            className="mode-switch"
+            role="radiogroup"
+            aria-label="Arayüz modu"
+            title={uiModes.find((m) => m.id === s.uiMode)?.description}
+          >
+            {uiModes.map((m) => (
+              <button
+                key={m.id}
+                role="radio"
+                aria-checked={s.uiMode === m.id}
+                className={s.uiMode === m.id ? "active" : ""}
+                title={m.description}
+                onClick={() => s.setUiMode(m.id)}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
           <label className="icon-button import-button" title="Import JSON">
             <Upload size={16} />
             <input
@@ -804,15 +840,10 @@ export default function App() {
         {telemetryVisible && (
           <div className="bottom-panel">
             <nav>
-              {[
-                "Flight telemetry",
-                "Shot metrics",
-                "Shot history",
-                "Debug state",
-              ].map((v) => (
+              {bottomTabs.map((v) => (
                 <button
                   key={v}
-                  className={bottom === v ? "active" : ""}
+                  className={activeBottom === v ? "active" : ""}
                   onClick={() => setBottom(v)}
                 >
                   {v}
@@ -831,16 +862,16 @@ export default function App() {
               </button>
             </nav>
             <div className="bottom-content">
-              {bottom === "Flight telemetry" ? (
+              {activeBottom === "Flight telemetry" ? (
                 <div className="telemetry-workspace">
                   <Telemetry shot={shot} />
                   <TrajectoryTable shot={shot} />
                 </div>
-              ) : bottom === "Shot metrics" ? (
+              ) : activeBottom === "Shot metrics" ? (
                 <Metrics shot={shot} />
-              ) : bottom === "Shooter section" ? (
+              ) : activeBottom === "Shooter section" ? (
                 <CrossSection shot={shot} />
-              ) : bottom === "Debug state" ? (
+              ) : activeBottom === "Debug state" ? (
                 <>
                   <button
                     onClick={() =>
@@ -899,38 +930,42 @@ export default function App() {
               Properties
             </PanelTitle>
             <nav className="tabs" aria-label="Properties tabs">
-              {[
-                ["Shooter", SlidersHorizontal],
-                ["Physics", Activity],
-                ["Field", Box],
-                ["Analysis", FlaskConical],
-                ["Sekiş", Crosshair],
-              ].map(([name, Icon]) => {
-                const I = Icon as typeof Activity;
-                return (
-                  <button
-                    key={String(name)}
-                    className={tab === name ? "active" : ""}
-                    onClick={() => {
-                      chooseTab(String(name));
-                    }}
-                  >
-                    <I size={13} />
-                    {String(name)}
-                  </button>
-                );
-              })}
+              {(
+                [
+                  ["Shooter", SlidersHorizontal],
+                  ["Physics", Activity],
+                  ["Field", Box],
+                  ["Analysis", FlaskConical],
+                  ["Sekiş", Crosshair],
+                ] as const
+              )
+                .filter(([name]) => propertyTabs.includes(name))
+                .map(([name, Icon]) => {
+                  const I = Icon as typeof Activity;
+                  return (
+                    <button
+                      key={String(name)}
+                      className={activeTab === name ? "active" : ""}
+                      onClick={() => {
+                        chooseTab(String(name));
+                      }}
+                    >
+                      <I size={13} />
+                      {String(name)}
+                    </button>
+                  );
+                })}
             </nav>
             <div
-              className={`controls-scroll ${tab === "Sekiş" ? "bounce-scroll" : ""}`}
+              className={`controls-scroll ${activeTab === "Sekiş" ? "bounce-scroll" : ""}`}
             >
-              {tab === "Sekiş" ? (
+              {activeTab === "Sekiş" ? (
                 <BounceControls shot={shot} />
-              ) : tab === "Shooter" ? (
+              ) : activeTab === "Shooter" ? (
                 <ShooterControls shot={shot} />
-              ) : tab === "Physics" ? (
+              ) : activeTab === "Physics" ? (
                 <PhysicsControls />
-              ) : tab === "Field" ? (
+              ) : activeTab === "Field" ? (
                 <FieldControls />
               ) : (
                 <AnalysisPanel a={a} openTool={setModal} />

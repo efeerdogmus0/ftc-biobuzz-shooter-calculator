@@ -9,6 +9,32 @@ and aerodynamic coefficients are engineering assumptions. Passing software tests
 shows internal consistency, not agreement with a real robot. Use the calibration
 workflow with your own measured shots before relying on numbers.
 
+## Update: interface modes and robot types
+
+- **Kolay / Orta / Zor (Gelişmiş)** switch in the toolbar. It only changes
+  how many controls are shown:
+  - **Kolay:** robot type, pose, hood angle, main-wheel RPM, fire, trajectory and bounce.
+  - **Orta:** adds wheel/hood coupling, compression and contact, POLLEN, aero,
+    field, and the HIVE and contact settings.
+  - **Zor:** the full engineering workbench, including analysis, calibration and debug.
+
+  Hidden inputs keep their values, and every mode uses the same configuration
+  and solver. The mode is stored separately from scenarios, profiles, share
+  links and calibration evidence. New visitors start in Kolay; anyone with saved
+  work starts in Zor. Opening a tool from a higher mode (e.g. Auto solve)
+  switches the interface up and says so.
+
+- **Robot type** selector (Shooter tab, all modes). It asks for confirmation,
+  then replaces only the shooter mechanism; robot pose, field, POLLEN, bounce
+  and resident settings are kept. Types:
+  - Main wheel + gear-linked powered hood: the current robot's mechanism.
+  - Main wheel + independently driven hood.
+  - Main wheel + passive (fixed) hood.
+  - Opposed top/bottom 96 mm wheels.
+
+  Each is an **unmeasured starting configuration** of the same contact model,
+  not a calibrated robot. The existing robot and ReCalc presets are unchanged.
+
 ## What is new in this release
 
 ### Runs anywhere, stays responsive
