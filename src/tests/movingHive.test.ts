@@ -33,6 +33,10 @@ const settings: BounceSettings = {
   previewTime: 5,
   contactModel: "rigid",
 };
+// The 2 s, 8-resident perforated-shell Hertz world is CPU-bound: 21–23 s on an
+// unloaded M1, 37.1 s on the GitHub Actions ubuntu-latest runner (0de7342).
+// Only the time budget differs on CI; the physics and assertions are identical.
+const compliantHiveTimeout = process.env.CI ? 120_000 : 30_000;
 function away() {
   const c = structuredClone(current),
     s = simulate(c);
@@ -185,29 +189,33 @@ describe("coupled hinge and perforated POLLEN", () => {
       ),
     ).toBe(true);
   }, 20000);
-  it("couples perforated shells and compliant contacts to the moving HIVE without non-finite states", () => {
-    const result = simulateBounceWorld(
-      away(),
-      {
-        ...settings,
-        shapeModel: "pollen",
-        contactModel: "hertz",
-        previewTime: 2,
-      },
-      8,
-    );
-    expect(result.flight.hiveTips!.length).toBeGreaterThan(0);
-    expect(
-      result.flight.hiveTrack!.every((h) =>
-        [h.angle, h.omega, h.loadTorque].every(Number.isFinite),
-      ),
-    ).toBe(true);
-    expect(
-      result.flight.ballTracks!.every((t) =>
-        t.samples.every((s) => [...s.p, ...s.spin].every(Number.isFinite)),
-      ),
-    ).toBe(true);
-  }, 30000);
+  it(
+    "couples perforated shells and compliant contacts to the moving HIVE without non-finite states",
+    () => {
+      const result = simulateBounceWorld(
+        away(),
+        {
+          ...settings,
+          shapeModel: "pollen",
+          contactModel: "hertz",
+          previewTime: 2,
+        },
+        8,
+      );
+      expect(result.flight.hiveTips!.length).toBeGreaterThan(0);
+      expect(
+        result.flight.hiveTrack!.every((h) =>
+          [h.angle, h.omega, h.loadTorque].every(Number.isFinite),
+        ),
+      ).toBe(true);
+      expect(
+        result.flight.ballTracks!.every((t) =>
+          t.samples.every((s) => [...s.p, ...s.spin].every(Number.isFinite)),
+        ),
+      ).toBe(true);
+    },
+    compliantHiveTimeout,
+  );
   it("moves contact support from a missing hole to its rim without arbitrary spin at its center", () => {
     const s = { ...settings, shapeModel: "pollen" as const, asphericity: 0 },
       h = holeAxes(s),
