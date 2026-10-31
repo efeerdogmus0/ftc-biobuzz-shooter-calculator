@@ -14,7 +14,6 @@ import {
   Download,
   Upload,
   Save,
-  Hexagon,
   SlidersHorizontal,
   Activity,
   Box,
@@ -33,6 +32,7 @@ import {
   Link2,
 } from "lucide-react";
 import { useCalibrationBadge } from "./useCalibrationBadge";
+import { ProbotBrand, ProbotNav } from "../components/ProbotBrand";
 import { bottomTabsFor, propertyTabsFor, uiModes } from "./uiMode";
 import { decodeShare, encodeShare, isShareHash } from "../utils/share";
 import {
@@ -344,90 +344,90 @@ export default function App() {
       : shot.shooter.warnings[0];
   const menus = [
     {
-      label: "File",
+      label: "Dosya",
       items: [
         {
-          label: "New model",
+          label: "Yeni model",
           run: () => s.setScenario(defaultScenario(presets[0])),
         },
-        { label: "Open profile…", run: () => importRef.current?.click() },
-        { label: "Save profile", run: () => save() },
+        { label: "Profil aç…", run: () => importRef.current?.click() },
+        { label: "Profili kaydet", run: () => save() },
         {
-          label: "Export profile…",
+          label: "Profili dışa aktar…",
           run: () => downloadJSON("pollen-profile.json", captureScenario(s)),
         },
-        { label: "Copy share link", run: share },
+        { label: "Paylaşım bağlantısını kopyala", run: share },
       ],
     },
     {
-      label: "Edit",
+      label: "Düzenle",
       items: [
-        { label: "Duplicate profile", run: () => save(true) },
-        { label: "Shooter properties", run: () => chooseTab("Shooter") },
-        { label: "Physics parameters", run: () => chooseTab("Physics") },
+        { label: "Profili çoğalt", run: () => save(true) },
+        { label: "Shooter ayarları", run: () => chooseTab("Shooter") },
+        { label: "Fizik parametreleri", run: () => chooseTab("Physics") },
       ],
     },
     {
-      label: "View",
+      label: "Görünüm",
       items: [
         {
-          label: "Model explorer",
+          label: "Model gezgini",
           checked: modelVisible,
           run: () => setModelVisible(!modelVisible),
         },
         {
-          label: "Properties",
+          label: "Özellikler",
           checked: propertiesVisible,
           run: () => setPropertiesVisible(!propertiesVisible),
         },
         {
-          label: "Telemetry",
+          label: "Telemetri",
           checked: telemetryVisible,
           run: () => setTelemetryVisible(!telemetryVisible),
         },
-        { label: "Focus 3D view", checked: focusScene, run: focus },
+        { label: "3D görünüme odaklan", checked: focusScene, run: focus },
         {
-          label: "Reset camera",
+          label: "Kamerayı sıfırla",
           run: () => s.set({ cameraReset: s.cameraReset + 1 }),
         },
       ],
     },
     {
-      label: "Simulation",
+      label: "Simülasyon",
       items: [
-        { label: "Fire shot", disabled: cannotPlay, run: () => s.fire(shot) },
+        { label: "Atış yap", disabled: cannotPlay, run: () => s.fire(shot) },
         {
-          label: s.playing ? "Pause" : "Play",
+          label: s.playing ? "Duraklat" : "Oynat",
           disabled: cannotPlay,
           run: play,
         },
-        { label: "Reset playback", run: resetPlayback },
+        { label: "Oynatmayı sıfırla", run: resetPlayback },
         {
-          label: "Bounce simulation",
+          label: "Sekme simülasyonu",
           checked: s.bounceEnabled,
           run: toggleBounce,
         },
       ],
     },
     {
-      label: "Tools",
+      label: "Araçlar",
       items: [
-        { label: "Auto solve", disabled: !!a.busy, run: solve },
-        { label: "Analysis", run: () => chooseTab("Analysis") },
-        { label: "Shooter clearance…", run: () => setModal("clearance") },
-        { label: "Shot angle study…", run: () => setModal("study") },
-        { label: "DECODE reference data…", run: () => setModal("legacy") },
+        { label: "Otomatik çöz", disabled: !!a.busy, run: solve },
+        { label: "Analiz", run: () => chooseTab("Analysis") },
+        { label: "Shooter açıklığı…", run: () => setModal("clearance") },
+        { label: "Atış açısı çalışması…", run: () => setModal("study") },
+        { label: "DECODE referans verisi…", run: () => setModal("legacy") },
         {
-          label: "Export shot data…",
+          label: "Atış verisini dışa aktar…",
           run: () => downloadJSON("selected-shot-debug.json", shot),
         },
       ],
     },
     {
-      label: "Help",
+      label: "Yardım",
       items: [
         {
-          label: "Physics model & assumptions",
+          label: "Fizik modeli ve varsayımlar",
           run: () => setModal("physics"),
         },
       ],
@@ -438,12 +438,10 @@ export default function App() {
       className={`app workbench ${s.theme} ${focusScene ? "focus-scene" : ""}`}
     >
       <div className="app-menubar">
-        <div className="brand">
-          <Hexagon size={19} />
-          <span>POLLEN SHOOTER</span>
-        </div>
+        <ProbotBrand />
         <WorkbenchMenu menus={menus} />
-        <span className="project-title">BIOBUZZ 2026–27</span>
+        <span className="project-title">ProbotShooter · BIOBUZZ 2026–27</span>
+        <ProbotNav />
       </div>
       <header className="app-toolbar">
         <div className="toolbar">
@@ -738,11 +736,13 @@ export default function App() {
           <div className="shot-controls">
             <button
               className="primary"
+              aria-label="Fire shot"
+              title="Atış yap (Fire shot)"
               disabled={cannotPlay}
               onClick={() => s.fire(shot)}
             >
               <Play size={13} fill="currentColor" />
-              Fire shot
+              Atış yap
             </button>
             <button
               title="Stop and reset"
