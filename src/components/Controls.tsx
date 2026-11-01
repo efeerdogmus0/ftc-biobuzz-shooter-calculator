@@ -8,11 +8,7 @@ import { wheelInertia, wheelSpeeds } from "../physics/shooter";
 import { getPath, parseConfig } from "../utils/config";
 import { ForMode } from "./ForMode";
 import { atLeast } from "../app/uiMode";
-import {
-  applyRobotType,
-  robotTypes,
-  type RobotTypeId,
-} from "../presets/robotTypes";
+import { RobotCard } from "./RobotSetup";
 export function RobotControls() {
   const s = useStore();
   return (
@@ -224,7 +220,7 @@ export function ShooterControls({ shot }: { shot: Shot }) {
         <span>SHOOTER SETTINGS</span>
         <span className="tiny-dot" />
       </div>
-      <RobotTypeSelector />
+      <RobotCard />
       <ForMode min="hard">
         <Section title="Shooter model" open>
           <Select
@@ -239,16 +235,14 @@ export function ShooterControls({ shot }: { shot: Shot }) {
         </Section>
       </ForMode>
       <Section title="Shooter configuration" open>
-        <ForMode min="medium">
-          <N
-            label="Wheel diameter"
-            path="shooter.primary.diameter"
-            kind="diameter"
-            min={0.005}
-            max={0.3}
-            slider={false}
-          />
-        </ForMode>
+        <N
+          label="Wheel diameter"
+          path="shooter.primary.diameter"
+          kind="diameter"
+          min={0.005}
+          max={0.3}
+          slider={false}
+        />
         <N
           label={`Main wheel RPM (${(c.shooter.primary.diameter * 1000).toFixed(0)} mm)`}
           path="shooter.primary.omega"
@@ -329,6 +323,13 @@ export function ShooterControls({ shot }: { shot: Shot }) {
           max={c.shooter.hoodMax}
           tip="Angle above field horizontal; mechanical offset is added below."
         />
+        <N
+          label="Exit height"
+          path="robot.exitOffset.2"
+          kind="diameter"
+          min={0.05}
+          max={2}
+        />
         <ForMode min="medium">
           <div className="two-col">
             <N
@@ -348,13 +349,6 @@ export function ShooterControls({ shot }: { shot: Shot }) {
             0° horizontal · 90° upward. Launch tangent:{" "}
             {toDeg(c.shooter.hoodAngle + c.shooter.hoodOffset).toFixed(1)}°
           </p>
-          <N
-            label="Exit height"
-            path="robot.exitOffset.2"
-            kind="diameter"
-            min={0.05}
-            max={2}
-          />
         </ForMode>
       </Section>
       <RobotControls />
@@ -588,48 +582,6 @@ export function ShooterControls({ shot }: { shot: Shot }) {
         </Section>
       </ForMode>
     </>
-  );
-}
-function RobotTypeSelector() {
-  const s = useStore();
-  const matching = robotTypes.find(
-    (t) => JSON.stringify(t.shooter()) === JSON.stringify(s.config.shooter),
-  );
-  return (
-    <Section title="Robot type" open>
-      <label className="field">
-        <span>Shooter mechanism</span>
-        <select
-          aria-label="Robot type"
-          value={matching?.id ?? ""}
-          onChange={(e) => {
-            const id = e.target.value as RobotTypeId;
-            const name = robotTypes.find((t) => t.id === id)?.name;
-            if (
-              !window.confirm(
-                `Shooter mekanizması "${name}" ile değiştirilsin mi? Robot konumu, saha, POLLEN ve sekme ayarları korunur; shooter ayarları değişir.`,
-              )
-            )
-              return;
-            s.setConfig(applyRobotType(s.config, id));
-          }}
-        >
-          <option value="" disabled>
-            Özel / değiştirilmiş mekanizma
-          </option>
-          {robotTypes.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <p className="muted">
-        {matching?.description ??
-          "Mevcut shooter ayarları hazır tiplerden biriyle birebir eşleşmiyor."}{" "}
-        Hazır tipler ölçülmemiş başlangıç ayarlarıdır.
-      </p>
-    </Section>
   );
 }
 function ForceTable() {

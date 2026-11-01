@@ -12,6 +12,7 @@ import {
   type Uncertainty,
 } from "../physics/analysis";
 import { downloadJSON } from "../utils/config";
+import { ForMode } from "./ForMode";
 import { ballModelSettings, physicsStamp } from "../physics/launchDynamics";
 const MEASUREMENT_TEXT_LIMIT = 512 * 1024;
 export function AnalysisPanel({
@@ -182,313 +183,330 @@ export function AnalysisPanel({
           <p className="muted">No solver candidates stored.</p>
         )}
       </Section>
-      <Section title="Evaluate hood range">
-        <N
-          label="Field grid spacing"
-          value={a.spacing}
-          onChange={a.setSpacing}
-          min={0.05}
-          max={0.5}
-          step={0.05}
-          kind="diameter"
-        />
-        <p className="muted">
-          50 / 100 mm grids can take minutes. Worker remains cancellable. Robot
-          center is inset by its bounding radius.
-        </p>
-        <button
-          className="wide"
-          disabled={!!a.busy}
-          onClick={() => a.run("coverage")}
-        >
-          Evaluate Hood Range
-        </button>
-        <label className="select-control">
-          Heatmap layer
-          <select
-            value={s.coverageMode}
-            onChange={(e) =>
-              s.set({ coverageMode: e.target.value as typeof s.coverageMode })
-            }
+      <ForMode min="medium">
+        <Section title="Evaluate hood range">
+          <N
+            label="Field grid spacing"
+            value={a.spacing}
+            onChange={a.setSpacing}
+            min={0.05}
+            max={0.5}
+            step={0.05}
+            kind="diameter"
+          />
+          <p className="muted">
+            50 / 100 mm grids can take minutes. Worker remains cancellable.
+            Robot center is inset by its bounding radius.
+          </p>
+          <button
+            className="wide"
+            disabled={!!a.busy}
+            onClick={() => a.run("coverage")}
           >
-            <option value="reachability">Reachability / clearance</option>
-            <option value="angle">Required hood angle</option>
-            <option value="velocity">Required launch velocity</option>
-            <option value="energy">Projectile energy</option>
-          </select>
-        </label>
-        {s.coverage.length > 0 && (
-          <>
-            <p className="success">
-              {s.coverage.filter((x) => x.candidate).length} /{" "}
-              {s.coverage.length} sampled poses have a valid candidate.
-            </p>
-            <button
-              onClick={() =>
-                downloadJSON("hood-range-analysis.json", s.coverage)
+            Evaluate Hood Range
+          </button>
+          <label className="select-control">
+            Heatmap layer
+            <select
+              value={s.coverageMode}
+              onChange={(e) =>
+                s.set({ coverageMode: e.target.value as typeof s.coverageMode })
               }
             >
-              Export grid results
-            </button>
-            <button onClick={() => s.set({ coverage: [] })}>
-              Clear heatmap
-            </button>
-          </>
-        )}
-      </Section>
-      <Section title="Monte Carlo consistency">
-        <label className="select-control">
-          Number of shots
-          <select
-            value={a.count}
-            onChange={(e) => a.setCount(Number(e.target.value))}
-          >
-            {[100, 1000, 10000].map((v) => (
-              <option key={v}>{v}</option>
-            ))}
-          </select>
-        </label>
-        <N
-          label="Random seed"
-          value={a.seed}
-          onChange={a.setSeed}
-          max={1000000}
-          step={1}
-          slider={false}
-        />
-        {Object.entries(a.uncertainty).map(([key, v]) => (
+              <option value="reachability">Reachability / clearance</option>
+              <option value="angle">Required hood angle</option>
+              <option value="velocity">Required launch velocity</option>
+              <option value="energy">Projectile energy</option>
+            </select>
+          </label>
+          {s.coverage.length > 0 && (
+            <>
+              <p className="success">
+                {s.coverage.filter((x) => x.candidate).length} /{" "}
+                {s.coverage.length} sampled poses have a valid candidate.
+              </p>
+              <button
+                onClick={() =>
+                  downloadJSON("hood-range-analysis.json", s.coverage)
+                }
+              >
+                Export grid results
+              </button>
+              <button onClick={() => s.set({ coverage: [] })}>
+                Clear heatmap
+              </button>
+            </>
+          )}
+        </Section>
+      </ForMode>
+      <ForMode min="hard">
+        <Section title="Monte Carlo consistency">
+          <label className="select-control">
+            Number of shots
+            <select
+              value={a.count}
+              onChange={(e) => a.setCount(Number(e.target.value))}
+            >
+              {[100, 1000, 10000].map((v) => (
+                <option key={v}>{v}</option>
+              ))}
+            </select>
+          </label>
           <N
-            key={key}
-            label={`${key} σ`}
-            value={v}
-            onChange={(x) => a.setUncertainty({ ...a.uncertainty, [key]: x })}
-            max={
-              key === "rpm"
-                ? 1000
-                : key === "mass"
-                  ? 0.01
-                  : key === "pose"
-                    ? 0.2
-                    : key === "diameter" || key === "compression"
-                      ? 0.01
-                      : key === "angle" || key === "yaw"
-                        ? 0.2
-                        : 1
-            }
-            step={key === "rpm" ? 1 : 0.0001}
-            unit={
-              (
-                {
-                  rpm: "RPM",
-                  angle: "rad",
-                  mass: "kg",
-                  diameter: "m",
-                  cd: "",
-                  compression: "m",
-                  friction: "",
-                  pose: "m",
-                  yaw: "rad",
-                  wind: "m/s",
-                } satisfies Record<keyof Uncertainty, string>
-              )[key as keyof Uncertainty]
-            }
+            label="Random seed"
+            value={a.seed}
+            onChange={a.setSeed}
+            max={1000000}
+            step={1}
             slider={false}
           />
-        ))}
-        <button
-          className="wide"
-          disabled={!!a.busy}
-          onClick={() => a.run("monteCarlo")}
-        >
-          Run consistency simulation
-        </button>
-        {a.mc && (
-          <>
-            <div className="probability">
-              {(100 * a.mc.probability).toFixed(1)}
-              <small>% entry success</small>
-            </div>
-            <p className="muted">
-              {a.mc.hits} / {a.mc.count} · seed {a.mc.seed}. Entry success is
-              not retention probability.
-            </p>
-            <Scatter
-              points={a.mc.entries}
-              width={
-                a.mcConfig
-                  ? JSON.parse(a.mcConfig).field.target.width
-                  : c.field.target.width
+          {Object.entries(a.uncertainty).map(([key, v]) => (
+            <N
+              key={key}
+              label={`${key} σ`}
+              value={v}
+              onChange={(x) => a.setUncertainty({ ...a.uncertainty, [key]: x })}
+              max={
+                key === "rpm"
+                  ? 1000
+                  : key === "mass"
+                    ? 0.01
+                    : key === "pose"
+                      ? 0.2
+                      : key === "diameter" || key === "compression"
+                        ? 0.01
+                        : key === "angle" || key === "yaw"
+                          ? 0.2
+                          : 1
               }
-              height={
-                a.mcConfig
-                  ? JSON.parse(a.mcConfig).field.target.height
-                  : c.field.target.height
+              step={key === "rpm" ? 1 : 0.0001}
+              unit={
+                (
+                  {
+                    rpm: "RPM",
+                    angle: "rad",
+                    mass: "kg",
+                    diameter: "m",
+                    cd: "",
+                    compression: "m",
+                    friction: "",
+                    pose: "m",
+                    yaw: "rad",
+                    wind: "m/s",
+                  } satisfies Record<keyof Uncertainty, string>
+                )[key as keyof Uncertainty]
               }
-              ellipses={a.mc.ellipses}
+              slider={false}
             />
-            <p className="muted">
-              Successful entry points in opening coordinates. Gaussian
-              covariance ellipses: 50 / 90 / 95%; conditional on entry.
-            </p>
-            <Scatter
-              points={a.mc.landings}
-              width={
-                a.mcConfig ? JSON.parse(a.mcConfig).field.size : c.field.size
-              }
-              height={
-                a.mcConfig ? JSON.parse(a.mcConfig).field.size : c.field.size
-              }
-            />
-            <p className="muted">
-              Floor impacts only; wall / CELL collisions excluded.
-            </p>
-            <button onClick={() => downloadJSON("monte-carlo.json", a.mc)}>
-              Export results
-            </button>
-          </>
-        )}
-      </Section>
-      <Section title="Measured-shot calibration">
-        <p className="muted">
-          Paste a JSON array of measured shots. Each row: id, split
-          (training/validation), primaryRPM, secondaryRPM, hoodDeg, exitVelocity
-          (m/s), spinRPM. Optional impact [X,Y,Z] requires time (s). Optional
-          robot pose captures a different shot location. Linked hood RPM must
-          match the configured ratio within 1 RPM; calibration keeps that
-          linkage. Optional rollerRPMs lists the extra hood speeds in order;
-          omitted extra speeds retain the configured commands. Timed positions
-          must precede the end of predicted free flight.
-        </p>
-        <textarea
-          aria-label="Calibration measurements JSON"
-          rows={10}
-          value={data}
-          onChange={(e) => setData(e.target.value)}
-          placeholder='[{"id":"shot-1","split":"training","primaryRPM":1700,"secondaryRPM":6375,"rollerRPMs":[6375,6375],"hoodDeg":65,"exitVelocity":7.1}]'
-        />
-        <button
-          onClick={() => {
-            try {
-              if (data.length > MEASUREMENT_TEXT_LIMIT)
-                throw new Error(
-                  `Measurement JSON exceeds ${MEASUREMENT_TEXT_LIMIT / 1024} kB.`,
-                );
-              const rows = parseMeasurements(
-                JSON.parse(data),
-                c.simulation.maxTime,
-              );
-              a.setMeasurements(rows);
-              setDataError(`${rows.length} measured shots loaded.`);
-            } catch (e) {
-              setDataError(String(e));
-            }
-          }}
-        >
-          Validate measurements
-        </button>
-        <p className="muted">{dataError}</p>
-        <p className="eyebrow">PARAMETERS TO FIT · BOUNDED</p>
-        {(
-          [
-            ["cd", 0, 2, c.aero.cd],
-            ["lift", 0, 3, c.aero.liftSlope],
-            ...(c.shooter.mode === "recalc"
-              ? [["transfer", 0.1, 2, c.shooter.transfer]]
-              : [
-                  ["friction", 0.05, 2, c.shooter.friction],
-                  ["stiffness", 100, 50000, c.shooter.ballStiffness],
-                ]),
-          ] as [FitParameter["key"], number, number, number][]
-        ).map(([key, min, max, value]) => (
-          <label className="toggle" key={key}>
-            <input
-              type="checkbox"
-              checked={a.parameters.some((p) => p.key === key)}
-              onChange={() => prepare(key, min, max, value)}
-            />
-            <span>
-              {key} [{min}, {max}]
-            </span>
-          </label>
-        ))}
-        <button
-          className="wide"
-          disabled={!!a.busy || !a.measurements.length || !a.parameters.length}
-          onClick={() => a.run("calibrate")}
-        >
-          Fit training measurements
-        </button>
-        {a.fit && (
-          <>
-            <table>
-              <thead>
-                <tr>
-                  <th>Parameter</th>
-                  <th>Initial</th>
-                  <th>Fitted</th>
-                </tr>
-              </thead>
-              <tbody>
-                {a.fit.parameters.map((p) => (
-                  <tr key={p.key}>
-                    <td>{p.key}</td>
-                    <td>{p.initial.toPrecision(4)}</td>
-                    <td>{p.value.toPrecision(4)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p>
-              Training RMSE: {a.fit.trainingRMSE.toFixed(3)} · Validation:{" "}
-              {a.fit.validationRMSE?.toFixed(3) ?? "not supplied"}{" "}
-              <small>(normalized)</small>
-            </p>
-            <p className={a.fit.validationPassed ? "muted" : "notice"}>
-              {a.fit.validationPassed
-                ? "Measured fit validated."
-                : "Fit has not passed held-out validation."}{" "}
-              Requires measured outcomes in every row, validation RMSE ≤ 1 and
-              maximum normalized error ≤ 2. This validates only the supplied
-              launch/flight observations, not HIVE retention or bounce
-              materials.
-            </p>
-            {a.fit.warnings.map((w) => (
-              <p className="notice" key={w}>
-                {w}
+          ))}
+          <button
+            className="wide"
+            disabled={!!a.busy}
+            onClick={() => a.run("monteCarlo")}
+          >
+            Run consistency simulation
+          </button>
+          {a.mc && (
+            <>
+              <div className="probability">
+                {(100 * a.mc.probability).toFixed(1)}
+                <small>% entry success</small>
+              </div>
+              <p className="muted">
+                {a.mc.hits} / {a.mc.count} · seed {a.mc.seed}. Entry success is
+                not retention probability.
               </p>
-            ))}
-            <button
-              onClick={() => {
-                const q = applyParameters(
-                  a.fitConfig ? JSON.parse(a.fitConfig) : c,
-                  a.fit!.parameters,
+              <Scatter
+                points={a.mc.entries}
+                width={
+                  a.mcConfig
+                    ? JSON.parse(a.mcConfig).field.target.width
+                    : c.field.target.width
+                }
+                height={
+                  a.mcConfig
+                    ? JSON.parse(a.mcConfig).field.target.height
+                    : c.field.target.height
+                }
+                ellipses={a.mc.ellipses}
+              />
+              <p className="muted">
+                Successful entry points in opening coordinates. Gaussian
+                covariance ellipses: 50 / 90 / 95%; conditional on entry.
+              </p>
+              <Scatter
+                points={a.mc.landings}
+                width={
+                  a.mcConfig ? JSON.parse(a.mcConfig).field.size : c.field.size
+                }
+                height={
+                  a.mcConfig ? JSON.parse(a.mcConfig).field.size : c.field.size
+                }
+              />
+              <p className="muted">
+                Floor impacts only; wall / CELL collisions excluded.
+              </p>
+              <button onClick={() => downloadJSON("monte-carlo.json", a.mc)}>
+                Export results
+              </button>
+            </>
+          )}
+        </Section>
+      </ForMode>
+      <ForMode min="medium">
+        <Section title="Measured-shot calibration">
+          <p className="muted">
+            Paste a JSON array of measured shots. Each row: id, split
+            (training/validation), primaryRPM, secondaryRPM, hoodDeg,
+            exitVelocity (m/s), spinRPM. Optional impact [X,Y,Z] requires time
+            (s). Optional robot pose captures a different shot location. Linked
+            hood RPM must match the configured ratio within 1 RPM; calibration
+            keeps that linkage. Optional rollerRPMs lists the extra hood speeds
+            in order; omitted extra speeds retain the configured commands. Timed
+            positions must precede the end of predicted free flight.
+          </p>
+          <textarea
+            aria-label="Calibration measurements JSON"
+            rows={10}
+            value={data}
+            onChange={(e) => setData(e.target.value)}
+            placeholder='[{"id":"shot-1","split":"training","primaryRPM":1700,"secondaryRPM":6375,"rollerRPMs":[6375,6375],"hoodDeg":65,"exitVelocity":7.1}]'
+          />
+          <button
+            onClick={() => {
+              try {
+                if (data.length > MEASUREMENT_TEXT_LIMIT)
+                  throw new Error(
+                    `Measurement JSON exceeds ${MEASUREMENT_TEXT_LIMIT / 1024} kB.`,
+                  );
+                const rows = parseMeasurements(
+                  JSON.parse(data),
+                  c.simulation.maxTime,
                 );
-                const bounceSettings = a.fitModel
-                  ? { ...s.bounceSettings, ...a.fitModel }
-                  : s.bounceSettings;
-                if (a.fitModel) s.set({ bounceSettings });
-                // The badge is recomputed from these measurements; no stored pass flag.
-                q.calibrated = false;
-                s.setConfig(q);
-                s.set({
-                  calibration: {
-                    stamp: calibrationStamp(
-                      q,
-                      ballModelSettings(bounceSettings),
-                    ),
-                    measurements: a.fitMeasurements,
-                  },
-                });
-              }}
-            >
-              Apply fitted parameters
-            </button>
-            <button onClick={() => downloadJSON("calibration-fit.json", a.fit)}>
-              Export fit report
-            </button>
-          </>
-        )}
-      </Section>
+                a.setMeasurements(rows);
+                setDataError(`${rows.length} measured shots loaded.`);
+              } catch (e) {
+                setDataError(String(e));
+              }
+            }}
+          >
+            Validate measurements
+          </button>
+          <p className="muted">{dataError}</p>
+          <p className="eyebrow">PARAMETERS TO FIT · BOUNDED</p>
+          {(
+            [
+              ["cd", 0, 2, c.aero.cd],
+              ["lift", 0, 3, c.aero.liftSlope],
+              ...(c.shooter.mode === "recalc"
+                ? [["transfer", 0.1, 2, c.shooter.transfer]]
+                : [
+                    ["friction", 0.05, 2, c.shooter.friction],
+                    ["stiffness", 100, 50000, c.shooter.ballStiffness],
+                  ]),
+            ] as [FitParameter["key"], number, number, number][]
+          ).map(([key, min, max, value]) => (
+            <label className="toggle" key={key}>
+              <input
+                type="checkbox"
+                checked={a.parameters.some((p) => p.key === key)}
+                onChange={() => prepare(key, min, max, value)}
+              />
+              <span>
+                {key} [{min}, {max}]
+              </span>
+            </label>
+          ))}
+          <button
+            className="wide"
+            disabled={
+              !!a.busy || !a.measurements.length || !a.parameters.length
+            }
+            onClick={() => a.run("calibrate")}
+          >
+            Fit training measurements
+          </button>
+          {a.fit && (
+            <>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Parameter</th>
+                    <th>Initial</th>
+                    <th>Fitted</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {a.fit.parameters.map((p) => (
+                    <tr key={p.key}>
+                      <td>{p.key}</td>
+                      <td>{p.initial.toPrecision(4)}</td>
+                      <td>{p.value.toPrecision(4)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p>
+                Training RMSE: {a.fit.trainingRMSE.toFixed(3)} · Validation:{" "}
+                {a.fit.validationRMSE?.toFixed(3) ?? "not supplied"}{" "}
+                <small>(normalized)</small>
+              </p>
+              <p className={a.fit.validationPassed ? "muted" : "notice"}>
+                {a.fit.validationPassed
+                  ? "Measured fit validated."
+                  : "Fit has not passed held-out validation."}{" "}
+                Requires measured outcomes in every row, validation RMSE ≤ 1 and
+                maximum normalized error ≤ 2. This validates only the supplied
+                launch/flight observations, not HIVE retention or bounce
+                materials.
+              </p>
+              {a.fit.warnings.map((w) => (
+                <p className="notice" key={w}>
+                  {w}
+                </p>
+              ))}
+              <button
+                onClick={() => {
+                  const q = applyParameters(
+                    a.fitConfig ? JSON.parse(a.fitConfig) : c,
+                    a.fit!.parameters,
+                  );
+                  const bounceSettings = a.fitModel
+                    ? { ...s.bounceSettings, ...a.fitModel }
+                    : s.bounceSettings;
+                  if (a.fitModel) s.set({ bounceSettings });
+                  // The badge is recomputed from these measurements; no stored pass flag.
+                  q.calibrated = false;
+                  s.setConfig(q);
+                  s.set({
+                    calibration: {
+                      stamp: calibrationStamp(
+                        q,
+                        ballModelSettings(bounceSettings),
+                      ),
+                      measurements: a.fitMeasurements,
+                    },
+                  });
+                }}
+              >
+                Apply fitted parameters
+              </button>
+              <button
+                onClick={() => downloadJSON("calibration-fit.json", a.fit)}
+              >
+                Export fit report
+              </button>
+            </>
+          )}
+        </Section>
+      </ForMode>
+      {s.uiMode !== "hard" && (
+        <p className="muted">
+          {s.uiMode === "easy"
+            ? "Kapsam haritası ve ölçümle kalibrasyon Orta modda; Monte Carlo Zor modda."
+            : "Monte Carlo tutarlılık analizi Zor modda."}
+        </p>
+      )}
     </>
   );
 }

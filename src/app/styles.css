@@ -497,6 +497,15 @@ kbd {
 .scene-canvas {
   position: absolute;
   inset: 0;
+  /* drei <Html> labels use z-indexes up to ~16.7M; keep them inside the scene
+     so panels drawn over the viewport (start panel, overlays) stay on top. */
+  isolation: isolate;
+  z-index: 0;
+}
+/* Before the first-run choice the example scene is a dimmed backdrop only. */
+.scene-canvas.awaiting-start {
+  opacity: 0.35;
+  pointer-events: none;
 }
 .viewport canvas {
   touch-action: none;
@@ -2653,6 +2662,141 @@ h2,
   .probot-nav {
     display: none;
   }
+}
+/* Public product: start panel, robot setup, provenance chips. */
+.viewport {
+  position: relative;
+}
+.start-panel {
+  position: absolute;
+  inset: 24px auto auto 24px;
+  z-index: 20;
+  max-width: 460px;
+  padding: 18px 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px #241a1222;
+}
+.start-panel h1 {
+  font-size: 22px;
+  margin: 2px 0 6px;
+}
+.start-actions,
+.start-saved,
+.setup-quick,
+.setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+.start-saved {
+  flex-direction: column;
+  align-items: stretch;
+}
+.small-print {
+  font-size: 10px;
+}
+.eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--brand-ink);
+  margin: 12px 0 4px;
+}
+.robot-setup h2 {
+  font-size: 18px;
+  margin: 4px 0;
+}
+.mechanism-list {
+  display: grid;
+  gap: 6px;
+}
+.mechanism-list label {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.mechanism-list label.active {
+  border-color: var(--brand);
+  background: var(--selection);
+}
+.mechanism-list small {
+  display: block;
+  margin-top: 2px;
+}
+.setup-field {
+  display: grid;
+  gap: 3px;
+  margin: 6px 0;
+}
+.setup-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.setup-three {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.setup-field input[type="text"] {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 6px;
+  background: var(--input);
+  color: var(--text);
+}
+.setup-error {
+  color: #b42318;
+}
+.dark .setup-error {
+  color: #ff8a80;
+}
+.setup-field.invalid input {
+  border-color: #b42318;
+}
+.assumptions {
+  margin: 4px 0;
+  padding-left: 18px;
+  line-height: 1.5;
+}
+.robot-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 8px 0;
+  background: var(--panel);
+}
+.robot-card > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.origin-chip {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  white-space: nowrap;
+}
+.origin-chip.user {
+  color: var(--text);
+}
+.origin-chip.example {
+  color: var(--brand-ink);
+  border-color: var(--brand);
+  border-style: dashed;
+}
+.origin-chip.reference {
+  color: var(--muted);
+  border-style: dashed;
 }
 /* Primary action (Fire) and slider thumbs: brand instead of the old blue.
    Same specificity + !important as the original `.primary` rule, declared later. */

@@ -9,6 +9,30 @@ and aerodynamic coefficients are engineering assumptions. Passing software tests
 shows internal consistency, not agreement with a real robot. Use the calibration
 workflow with your own measured shots before relying on numbers.
 
+## Update: public-first robots (any BIOBUZZ team)
+
+- **First visit:** A start panel offers **Robotumu kur**, **Genel örneği dene** and
+  **Dosyadan aç**. Saved work and share links open directly.
+- **Robotumu kur:** Pick a mechanism (main wheel + driven hood rollers, main
+  wheel + fixed non-rotating hood, or two opposed wheels), then enter your
+  measurements: wheel/roller diameters, RPM or ratio, gap, exit height and hood
+  angles. The unmeasured model assumptions are listed. Cancel changes nothing.
+  "Kurulumu düzenle" changes only the shooter, exit height and name; pose,
+  POLLEN, bounce settings and calibration evidence are kept. Free-spinning
+  (idler) hood rollers are not modelled.
+- **General example:** Two opposed 100 mm wheels at 1400 RPM. It is nobody's
+  robot, not measured and not tuned to score.
+- **Provenance chip:** Robotum / Örnek · ölçülmemiş / Referans (kopya). Saving
+  an example or reference copy makes it your robot and records its source.
+- **Advanced examples (Zor only):** The project's reference robot, the ReCalc
+  comparison model and the DECODE 2025–26 data (credited, not applicable to
+  BIOBUZZ). Selecting ReCalc never shows as validated; only held-out
+  measurements that re-verify do.
+- **Modes:** Kolay shows wheel diameter, exit height and Auto solve. The app
+  never switches mode on its own. Without a saved choice, everyone starts in Kolay.
+- **Fix:** A team's own 72 mm / 16 mm shooter is no longer silently rewritten
+  into this project's historical default on reload.
+
 ## Update: interface modes and robot types
 
 - **Kolay / Orta / Zor (Gelişmiş)** switch in the toolbar. It only changes

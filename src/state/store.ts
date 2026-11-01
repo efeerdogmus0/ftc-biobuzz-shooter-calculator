@@ -1,20 +1,20 @@
-import { nominalHiveY } from "../field/fieldConfig";
 import { create } from "zustand";
 import type { BounceSettings, Config, Shot, Vec3 } from "../physics/types";
 import type { CoverageCell } from "../physics/analysis";
-import { current } from "../presets";
 import { aim } from "../physics/flight";
+import { legacyNotices } from "../utils/legacy";
 import { physicsStamp } from "../physics/launchDynamics";
 import { setPath } from "../utils/config";
 import { consumeResetRequest } from "../app/recovery";
 import { initialUiMode, UI_MODE_KEY, type UiMode } from "../app/uiMode";
 import {
   captureScenario,
-  defaultScenario,
+  exampleScenario,
   parseScenario,
   loadScenarios,
   type Scenario,
   type ScenarioState,
+  type ScenarioOrigin,
   type StoredCalibration,
 } from "../utils/scenario";
 export type CameraView =
@@ -41,6 +41,12 @@ interface State extends ScenarioState {
   residentLayout: "center" | "left" | "right" | "manual";
   manualResidents: Vec3[];
   calibration: StoredCalibration | null;
+  /** Whose robot this is (user / public example / reference); not physics. */
+  origin: ScenarioOrigin | null;
+  /** First visit with nothing saved: show the start panel. */
+  needsStart: boolean;
+  /** Robot setup panel (UI only). */
+  setupOpen: "new" | "edit" | null;
   /** Interface complexity; stored apart from the physical scenario. */
   uiMode: UiMode;
   setUiMode: (mode: UiMode) => void;
@@ -65,50 +71,28 @@ interface State extends ScenarioState {
 /** Legacy callers that need configuration only. The UI uses full scenarios. */
 export const loadProfiles = (raw: string | null): Config[] =>
   loadScenarios(raw).map((s) => s.config);
-let initial = defaultScenario();
-function migrateLegacyShooter(c: Config) {
-  if (
-    Math.abs(c.field.target.center[1] + 0.0254 * 6.5) < 1e-6 &&
-    Math.abs(c.field.target.tilt + Math.PI / 3) < 1e-6
-  ) {
-    c.field.target.center[1] = nominalHiveY;
-    c.field.hive.bottomHeight = 0.0254 * 30.6;
-  }
-  const legacy =
-    Math.abs(c.shooter.primary.diameter - 0.072) < 1e-9 &&
-    Math.abs(c.shooter.secondary.diameter - 0.016) < 1e-9 &&
-    c.shooter.rollers.length === 0;
-  if (!legacy) return c;
-  const q = structuredClone(c);
-  q.name = current.name;
-  q.projectile.name = "POLLEN";
-  q.projectile.diameter = current.projectile.diameter;
-  q.projectile.mass = current.projectile.mass;
-  q.shooter.primary = {
-    ...current.shooter.primary,
-    omega: q.shooter.primary.omega,
-  };
-  q.shooter.secondary = structuredClone(current.shooter.secondary);
-  q.shooter.rollers = structuredClone(current.shooter.rollers);
-  q.shooter.link = "gear";
-  q.shooter.surfaceRatio = current.shooter.surfaceRatio;
-  return q;
-}
-let startMode: UiMode = "hard";
+// A first visit (nothing saved) starts on the public example behind the
+// start panel — never on the project's own reference robot.
+let initial: Scenario = exampleScenario();
+let needsStart = true;
+/** Messages about the saved scenario shown once at startup. */
+export let startupNotices: string[] = [];
+let startMode: UiMode = "easy";
 try {
   // Read before ?reset clears the active scenario, so a reset keeps the user's mode.
   startMode = initialUiMode(localStorage);
 } catch {
-  /* No storage (tests/private mode): full workbench. */
+  /* No storage (tests/private mode). */
 }
 try {
   if (typeof location !== "undefined")
     consumeResetRequest(location, localStorage, history);
   const saved = localStorage.getItem("pollen-active");
   if (saved) {
+    // Loaded exactly as saved; older layouts are reported, never rewritten.
     initial = parseScenario(JSON.parse(saved));
-    initial.config = migrateLegacyShooter(initial.config);
-    localStorage.setItem("pollen-active", JSON.stringify(initial));
+    startupNotices = legacyNotices(initial.config);
+    needsStart = false;
   }
 } catch {
   /* Invalid/stale saved state cannot crash startup. */
@@ -135,6 +119,9 @@ export const useStore = create<State>((set, get) => ({
   residentLayout: initial.residentLayout,
   manualResidents: initial.manualResidents,
   calibration: initial.calibration ?? null,
+  origin: initial.origin ?? null,
+  needsStart,
+  setupOpen: null,
   uiMode: startMode,
   setUiMode: (uiMode) => {
     set({ uiMode });
@@ -194,6 +181,8 @@ export const useStore = create<State>((set, get) => ({
       residentLayout: scenario.residentLayout,
       manualResidents: scenario.manualResidents,
       calibration: scenario.calibration ?? null,
+      origin: scenario.origin ?? null,
+      needsStart: false,
       playing: false,
       playReset: get().playReset + 1,
       coverage: [],
@@ -250,6 +239,7 @@ export const useStore = create<State>((set, get) => ({
         "residentLayout",
         "manualResidents",
         "calibration",
+        "origin",
       ].some((k) => k in s)
     )
       try {

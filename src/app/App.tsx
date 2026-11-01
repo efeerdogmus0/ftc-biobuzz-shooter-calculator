@@ -42,7 +42,7 @@ import {
   PanelTitle,
 } from "../components/Workbench";
 import { FieldScene } from "../scene/FieldScene";
-import { useStore, type CameraView } from "../state/store";
+import { startupNotices, useStore, type CameraView } from "../state/store";
 import { useBounceSimulation } from "./useBounceSimulation";
 import { BounceControls } from "../components/BounceControls";
 import { usePreviewSimulation } from "./usePreviewSimulation";
@@ -52,15 +52,29 @@ import {
   type BallModelSettings,
 } from "../physics/launchDynamics";
 import { toDeg } from "../utils/units";
-import { presets } from "../presets";
-import { downloadJSON } from "../utils/config";
+import { downloadJSON, parseConfig } from "../utils/config";
 import {
   captureScenario,
   defaultScenario,
+  exampleScenario,
   parseScenario,
   loadScenarios,
+  referenceEntries,
+  referenceScenario,
+  scenarioFromSpec,
   type Scenario,
 } from "../utils/scenario";
+import {
+  applySpecChanges,
+  blankSpec,
+  type RobotSpec,
+} from "../presets/factory";
+import {
+  RobotSetup,
+  StartPanel,
+  currentSpec,
+  originLabel,
+} from "../components/RobotSetup";
 import {
   ShooterControls,
   PhysicsControls,
@@ -177,6 +191,9 @@ export default function App() {
       : bottomTabs[0];
   const calibrationBadge = useCalibrationBadge(c, model, s.calibration);
   useEffect(() => {
+    if (startupNotices.length) setNotification(startupNotices.join(" "));
+  }, []);
+  useEffect(() => {
     if (!isShareHash(location.hash)) return;
     const hash = location.hash;
     history.replaceState(null, "", `${location.pathname}${location.search}`);
@@ -212,9 +229,58 @@ export default function App() {
       tell(`Share failed: ${e instanceof Error ? e.message : e}`);
     }
   };
+  const openSetup = () => {
+    s.set({ setupOpen: "new" });
+    setPropertiesVisible(true);
+  };
+  const openExample = () => {
+    s.setScenario(exampleScenario());
+    tell("Genel örnek açıldı · ölçülmemiş başlangıç noktası.");
+  };
+  // Every commit is validated before it touches the active project; an
+  // invalid draft only produces a message and keeps the form open.
+  const applySetup = (before: RobotSpec, after: RobotSpec) => {
+    try {
+      if (s.setupOpen === "edit") {
+        const next = parseConfig(
+          JSON.parse(JSON.stringify(applySpecChanges(s.config, before, after))),
+        );
+        s.setConfig(next);
+        // The live config is authoritative; drop any creation-time spec copy.
+        if (s.origin?.spec) {
+          const { spec: _drop, ...rest } = s.origin;
+          void _drop;
+          s.set({ origin: rest });
+        }
+        s.set({ setupOpen: null });
+        tell("Kurulum uygulandı.");
+      } else {
+        const scenario = parseScenario(
+          JSON.parse(JSON.stringify(scenarioFromSpec(after))),
+        );
+        s.setScenario(scenario);
+        s.set({ setupOpen: null });
+        tell("Robot oluşturuldu. Kaydetmek için Dosya → Profili kaydet.");
+      }
+    } catch (e) {
+      tell(
+        `Kurulum uygulanamadı, mevcut robot değişmedi: ${e instanceof Error ? e.message : e}`,
+      );
+    }
+  };
   const save = (duplicate = false) => {
     try {
       const q = captureScenario(s);
+      // Saving an example/reference copy makes it the user's own robot; the
+      // source stays recorded.
+      if (q.origin && q.origin.kind !== "user") {
+        q.origin = {
+          kind: "user",
+          source: `${q.origin.source ?? originLabel(q.origin)} temel alındı`,
+          ...(q.origin.spec ? { spec: q.origin.spec } : {}),
+        };
+        s.set({ origin: q.origin });
+      }
       if (duplicate)
         q.config.name = `${q.config.name} · copy ${profiles.length + 1}`;
       const next = [
@@ -253,8 +319,8 @@ export default function App() {
           >
             Export active scenario JSON
           </button>
-          <button onClick={() => s.setScenario(defaultScenario(presets[0]))}>
-            Restore current robot preset
+          <button onClick={() => s.setScenario(exampleScenario())}>
+            Genel örneği aç
           </button>
         </div>
         {profiles.length > 0 && (
@@ -275,8 +341,12 @@ export default function App() {
     c.field.target.center[0] - shot.origin[0],
     c.field.target.center[1] - shot.origin[1],
   );
+  // Choosing a model never makes a robot measured; only re-verified held-out
+  // measurements (below) can, for any model.
   const fallbackBadge =
-    c.shooter.mode === "recalc" ? "ReCalc-calibrated" : "Uncalibrated";
+    c.shooter.mode === "recalc"
+      ? "ReCalc modeli · ölçülmüş doğrulama değil"
+      : "Ölçümle doğrulanmadı";
   const fitValidated =
     calibrationBadge.kind === "verified" && calibrationBadge.result.passed;
   const badge =
@@ -293,12 +363,12 @@ export default function App() {
             : fallbackBadge;
   const chooseTab = (name: string) => {
     if (!propertyTabs.includes(name)) {
-      // An explicit request for a tool raises the interface level, visibly.
+      // Never switch modes on the user's behalf; say where the tool lives.
       const needed = uiModes.find((m) => propertyTabsFor(m.id).includes(name));
-      if (needed) {
-        s.setUiMode(needed.id);
-        tell(`${name} için arayüz ${needed.label} moduna geçti.`);
-      }
+      tell(
+        `${name} ayarları ${needed?.label ?? "Zor"} modunda; üst çubuktaki mod düğmesinden açabilirsin.`,
+      );
+      return;
     }
     setTab(name);
     setPropertiesVisible(true);
@@ -319,7 +389,9 @@ export default function App() {
       showTrajectory: true,
     });
   };
+  // Nothing fires before the first-run choice (example / own robot / file).
   const cannotPlay =
+    s.needsStart ||
     result.stale ||
     !shot.shooter.exited ||
     s.bounceBusy ||
@@ -346,10 +418,8 @@ export default function App() {
     {
       label: "Dosya",
       items: [
-        {
-          label: "Yeni model",
-          run: () => s.setScenario(defaultScenario(presets[0])),
-        },
+        { label: "Yeni robot kur…", run: openSetup },
+        { label: "Genel örneği aç", run: openExample },
         { label: "Profil aç…", run: () => importRef.current?.click() },
         { label: "Profili kaydet", run: () => save() },
         {
@@ -416,7 +486,14 @@ export default function App() {
         { label: "Analiz", run: () => chooseTab("Analysis") },
         { label: "Shooter açıklığı…", run: () => setModal("clearance") },
         { label: "Atış açısı çalışması…", run: () => setModal("study") },
-        { label: "DECODE referans verisi…", run: () => setModal("legacy") },
+        ...(s.uiMode === "hard"
+          ? [
+              {
+                label: "Gelişmiş örnek: geçmiş sezon (DECODE) verisi…",
+                run: () => setModal("legacy"),
+              },
+            ]
+          : []),
         {
           label: "Atış verisini dışa aktar…",
           run: () => downloadJSON("selected-shot-debug.json", shot),
@@ -446,9 +523,9 @@ export default function App() {
       <header className="app-toolbar">
         <div className="toolbar">
           <button
-            title="New model"
+            title="Yeni robot kur"
             aria-label="New model"
-            onClick={() => s.setScenario(defaultScenario(presets[0]))}
+            onClick={openSetup}
           >
             <FilePlus2 size={17} />
           </button>
@@ -459,34 +536,58 @@ export default function App() {
           >
             <FolderOpen size={17} />
           </button>
+          <span
+            className={`origin-chip ${s.origin?.kind ?? "user"}`}
+            title="Bu robot kimin? Robotum = senin; Örnek/Referans = ölçülmemiş kopya"
+          >
+            {originLabel(s.origin)}
+          </span>
           <select
-            aria-label="Robot preset"
+            aria-label="Robot"
             value=""
             onChange={(e) => {
-              const [type, i] = e.target.value.split(":");
-              if (type === "preset")
-                s.setScenario(defaultScenario(presets[Number(i)]));
-              else s.setScenario(profiles[Number(i)]);
-              tell("Profile loaded.");
+              const [type, id] = e.target.value.split(":");
+              if (type === "new") openSetup();
+              else if (type === "example") openExample();
+              else if (type === "file") importRef.current?.click();
+              else if (type === "saved") {
+                s.setScenario(profiles[Number(id)]);
+                tell("Robot açıldı.");
+              } else if (type === "ref") {
+                s.setScenario(
+                  referenceScenario(
+                    id as (typeof referenceEntries)[number]["id"],
+                  ),
+                );
+                tell("Referans kopyası açıldı; ölçülmüş değildir.");
+              } else if (type === "decode") setModal("legacy");
             }}
           >
             <option value="" disabled>
               {c.name}
             </option>
-            <optgroup label="Presets">
-              {presets.map((p, i) => (
-                <option key={i} value={`preset:${i}`}>
-                  {p.name}
-                </option>
-              ))}
-            </optgroup>
+            <option value="new:">＋ Yeni robot kur…</option>
+            <option value="example:">Genel örneği aç</option>
+            <option value="file:">Dosyadan aç…</option>
             {profiles.length > 0 && (
-              <optgroup label="Saved profiles">
+              <optgroup label="Robotlarım">
                 {profiles.map((p, i) => (
                   <option key={i} value={`saved:${i}`}>
                     {p.config.name}
                   </option>
                 ))}
+              </optgroup>
+            )}
+            {s.uiMode === "hard" && (
+              <optgroup label="Gelişmiş örnekler (referans arşivi)">
+                {referenceEntries.map((r) => (
+                  <option key={r.id} value={`ref:${r.id}`}>
+                    {r.label}
+                  </option>
+                ))}
+                <option value="decode:">
+                  Geçmiş sezon verisi · DECODE 2025–26 (BIOBUZZ'a uygulanmaz)
+                </option>
               </optgroup>
             )}
           </select>
@@ -636,8 +737,18 @@ export default function App() {
             <span className="scene-document">{c.name}</span>
           </nav>
           <div className="viewport">
+            {s.needsStart && !s.setupOpen && (
+              <StartPanel
+                onSetup={openSetup}
+                onExample={openExample}
+                onFile={() => importRef.current?.click()}
+                saved={profiles.map((p) => p.config.name)}
+                onOpenSaved={(i) => s.setScenario(profiles[i])}
+              />
+            )}
             <div
-              className={`scene-canvas ${sceneTab !== "3D View" ? "hidden" : ""}`}
+              className={`scene-canvas ${sceneTab !== "3D View" ? "hidden" : ""} ${s.needsStart ? "awaiting-start" : ""}`}
+              aria-hidden={s.needsStart || undefined}
             >
               <SceneBoundary>
                 <FieldScene shot={shot} />
@@ -959,7 +1070,19 @@ export default function App() {
             <div
               className={`controls-scroll ${activeTab === "Sekiş" ? "bounce-scroll" : ""}`}
             >
-              {activeTab === "Sekiş" ? (
+              {s.setupOpen ? (
+                <RobotSetup
+                  key={s.setupOpen}
+                  mode={s.setupOpen}
+                  initial={
+                    s.setupOpen === "edit"
+                      ? (currentSpec() ?? blankSpec())
+                      : blankSpec()
+                  }
+                  onCancel={() => s.set({ setupOpen: null })}
+                  onApply={applySetup}
+                />
+              ) : activeTab === "Sekiş" ? (
                 <BounceControls shot={shot} />
               ) : activeTab === "Shooter" ? (
                 <ShooterControls shot={shot} />

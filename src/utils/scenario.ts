@@ -1,5 +1,11 @@
 import type { BounceSettings, Config, Vec3 } from "../physics/types";
-import { current } from "../presets";
+import { current, recalc } from "../presets";
+import {
+  buildRobot,
+  exampleSpec,
+  parseSpec,
+  type RobotSpec,
+} from "../presets/factory";
 import { defaultBounce } from "../physics/bounce";
 import { advancedBounceDefaults } from "../physics/contactModel";
 import { defaultHiveReference } from "../physics/hiveReference";
@@ -15,6 +21,15 @@ export interface StoredCalibration {
   stamp: string;
   measurements: Measurement[];
 }
+/**
+ * Provenance only — never physics. Files without it are the user's own work.
+ * `spec` lets "Kurulumu düzenle" reopen the setup the robot was built from.
+ */
+export interface ScenarioOrigin {
+  kind: "user" | "example" | "reference";
+  source?: string;
+  spec?: RobotSpec;
+}
 export interface ScenarioState {
   config: Config;
   bounceEnabled: boolean;
@@ -23,6 +38,56 @@ export interface ScenarioState {
   residentLayout: "center" | "left" | "right" | "manual";
   manualResidents: Vec3[];
   calibration?: StoredCalibration | null;
+  origin?: ScenarioOrigin | null;
+}
+export function parseOrigin(value: unknown): ScenarioOrigin | null {
+  if (!record(value)) return null;
+  if (!["user", "example", "reference"].includes(value.kind as string))
+    return null;
+  const source =
+    typeof value.source === "string" && value.source.length <= 120
+      ? value.source
+      : undefined;
+  const spec = parseSpec(value.spec) ?? undefined;
+  return {
+    kind: value.kind as ScenarioOrigin["kind"],
+    ...(source ? { source } : {}),
+    ...(spec ? { spec } : {}),
+  };
+}
+/** Public example: two opposed 100 mm wheels, unmeasured, not tuned to score. */
+export function exampleScenario(): Scenario {
+  return {
+    ...defaultScenario(buildRobot(exampleSpec)),
+    origin: { kind: "example", source: "Genel örnek", spec: exampleSpec },
+  };
+}
+/** A new robot of the user's own, from "Robotumu kur". */
+export function scenarioFromSpec(spec: RobotSpec): Scenario {
+  return {
+    ...defaultScenario(buildRobot(spec)),
+    origin: { kind: "user", spec },
+  };
+}
+/** Archive entries (Gelişmiş örnekler): historical fixtures, opened as copies. */
+export const referenceEntries = [
+  {
+    id: "reference-robot",
+    label: "Referans robot · geliştirme sırasında kullanılan (ölçülmemiş)",
+    config: () => structuredClone(current),
+  },
+  {
+    id: "recalc",
+    label: "ReCalc karşılaştırma modeli (harici, ölçülmüş doğrulama değil)",
+    config: () => structuredClone(recalc),
+  },
+] as const;
+export function referenceScenario(id: (typeof referenceEntries)[number]["id"]) {
+  const entry = referenceEntries.find((e) => e.id === id)!;
+  return {
+    ...defaultScenario(entry.config()),
+    origin: { kind: "reference", source: entry.label },
+  } as Scenario;
 }
 export interface Scenario extends ScenarioState {
   format: "pollen-shooter-scenario";
@@ -56,6 +121,7 @@ export function captureScenario(s: ScenarioState): Scenario {
     residentLayout: s.residentLayout,
     manualResidents: s.manualResidents,
     ...(s.calibration ? { calibration: s.calibration } : {}),
+    ...(s.origin ? { origin: s.origin } : {}),
   });
 }
 function record(value: unknown): value is Record<string, unknown> {
@@ -203,6 +269,8 @@ export function parseScenario(value: unknown): Scenario {
     config,
     bounceSettings: settings,
     calibration,
+    // Unknown/invalid provenance is dropped, never a reason to reject a file.
+    origin: parseOrigin(value.origin),
   } as unknown as ScenarioState);
   if (scenario.residentLayout === "manual") {
     if (scenario.manualResidents.length !== scenario.residentCount)

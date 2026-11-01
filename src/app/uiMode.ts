@@ -30,22 +30,22 @@ export function atLeast(mode: UiMode, min: UiMode) {
   return order[mode] >= order[min];
 }
 
-/** New visitors start in Kolay; anyone who already has saved work keeps the full workbench. */
+/**
+ * A mode the user chose is kept. Without a choice everyone starts in Kolay:
+ * having saved work is not a sign of wanting the full workbench.
+ */
 export function initialUiMode(storage: Pick<Storage, "getItem">): UiMode {
   const saved = storage.getItem(UI_MODE_KEY);
   if (saved === "easy" || saved === "medium" || saved === "hard") return saved;
-  const returning =
-    storage.getItem("pollen-active") !== null ||
-    storage.getItem("pollen-profiles") !== null;
-  return returning ? "hard" : "easy";
+  return "easy";
 }
 
+// Analysis is in every mode so Auto solve never forces a mode change; inside
+// the panel, heavier tools are shown from Orta/Zor.
 export const propertyTabsFor = (mode: UiMode) =>
   mode === "easy"
-    ? ["Shooter", "Sekiş"]
-    : mode === "medium"
-      ? ["Shooter", "Physics", "Field", "Sekiş"]
-      : ["Shooter", "Physics", "Field", "Analysis", "Sekiş"];
+    ? ["Shooter", "Analysis", "Sekiş"]
+    : ["Shooter", "Physics", "Field", "Analysis", "Sekiş"];
 
 export const bottomTabsFor = (mode: UiMode) =>
   mode === "easy"
