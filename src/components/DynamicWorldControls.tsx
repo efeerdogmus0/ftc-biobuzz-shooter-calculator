@@ -3,6 +3,7 @@ import type { BounceSettings, Shot, Vec3 } from "../physics/types";
 import { sampleHive } from "../physics/hiveDynamics";
 import { residentPlayback } from "../utils/residentPlayback";
 import { defaultHiveReference } from "../physics/hiveReference";
+import { useT } from "../i18n/useT";
 const deg = (x: number) => (x * 180) / Math.PI,
   rad = (x: number) => (x * Math.PI) / 180;
 export function DynamicWorldControls({ shot }: { shot: Shot }) {
@@ -10,6 +11,7 @@ export function DynamicWorldControls({ shot }: { shot: Shot }) {
     p = s.bounceSettings,
     f = shot.flight,
     h = sampleHive(f.hiveTrack ?? [], s.playbackTime);
+  const t = useT();
   const edit = (v: Partial<BounceSettings>) =>
     s.set({
       bounceSettings: { ...p, ...v },
@@ -27,13 +29,13 @@ export function DynamicWorldControls({ shot }: { shot: Shot }) {
     unit = "",
   ) => (
     <label key={label}>
-      {label}
+      {t(label)}
       <output>
         {value.toFixed(step < 1 ? 2 : 0)} {unit}
       </output>
       <input
         type="range"
-        aria-label={label}
+        aria-label={t(label)}
         value={value}
         min={min}
         max={max}
@@ -59,66 +61,70 @@ export function DynamicWorldControls({ shot }: { shot: Shot }) {
     });
   return (
     <section className="dynamic-world contact-physics">
-      <strong>Hareketli HIVE ve delikli POLLEN</strong>
+      <strong>{t("Hareketli HIVE ve delikli POLLEN")}</strong>
       <div className="automatic-spin">
-        <span>Shooter’dan otomatik çıkış spini</span>
-        <output aria-label="Otomatik çıkış spini">
+        <span>{t("Shooter’dan otomatik çıkış spini")}</span>
+        <output aria-label={t("Otomatik çıkış spini")}>
           {Math.abs(spinRPM).toFixed(0)} RPM
           <small>
-            {Math.abs(spinRPM) < 0.5
-              ? "Dönüş yok"
-              : spinRPM > 0
-                ? "Backspin"
-                : "Topspin"}
+            {t(
+              Math.abs(spinRPM) < 0.5
+                ? "Dönüş yok"
+                : spinRPM > 0
+                  ? "Backspin"
+                  : "Topspin",
+            )}
           </small>
         </output>
         <p>
-          Tekerlek hızları, çaplar, hood temasları, sıkıştırma, sürtünme ve top
-          ataletiyle hesaplanır. Shooter ayarları değişince hız ve spin birlikte
-          güncellenir; çarpışmalarda her topun dönüşü ayrı hesaplanır.
+          {t(
+            "Tekerlek hızları, çaplar, hood temasları, sıkıştırma, sürtünme ve top ataletiyle hesaplanır. Shooter ayarları değişince hız ve spin birlikte güncellenir; çarpışmalarda her topun dönüşü ayrı hesaplanır.",
+          )}
         </p>
       </div>
       <label className="dynamic-check">
         <input
           type="checkbox"
-          aria-label="HIVE hareketli"
+          aria-label={t("HIVE hareketli")}
           checked={!!p.hiveMotion}
           onChange={(e) => edit({ hiveMotion: e.target.checked })}
         />
-        HIVE hareketli · pivot ve darbe tepkisi
+        {t("HIVE hareketli · pivot ve darbe tepkisi")}
       </label>
       {p.hiveMotion && (
         <div className="hive-live">
           <span>
-            HIVE açısı <b>{h ? (deg(h.angle) - 30).toFixed(1) : "—"}°</b>
+            {t("HIVE açısı")} <b>{h ? (deg(h.angle) - 30).toFixed(1) : "—"}°</b>
           </span>
           <span>
-            Dönüş hızı <b>{h ? deg(h.omega).toFixed(1) : "—"}°/s</b>
+            {t("Dönüş hızı")} <b>{h ? deg(h.omega).toFixed(1) : "—"}°/s</b>
           </span>
           <span>
-            Devrilme <b>{f.hiveTips?.length ?? 0}</b>
+            {t("Devrilme")} <b>{f.hiveTips?.length ?? 0}</b>
           </span>
         </div>
       )}
       {residents.length > 0 && (
         <div className="resident-live">
-          <strong>Toplar · {s.playbackTime.toFixed(2)} s</strong>
-          <div className="hive-live" aria-label="Topların anlık durumu">
+          <strong>
+            {t.f("Toplar · {time} s", { time: s.playbackTime.toFixed(2) })}
+          </strong>
+          <div className="hive-live" aria-label={t("Topların anlık durumu")}>
             <span>
-              CELL içinde{" "}
+              {t("CELL içinde")}{" "}
               <b>
                 {inside} / {residents.length}
               </b>
             </span>
             <span>
-              CELL dışında <b>{residents.length - inside}</b>
+              {t("CELL dışında")} <b>{residents.length - inside}</b>
             </span>
             <span>
-              Zemine ulaşan{" "}
+              {t("Zemine ulaşan")}{" "}
               <b>{residents.filter((b) => b.reachedFloor).length}</b>
             </span>
             <span>
-              Düşen{" "}
+              {t("Düşen")}{" "}
               <b>{residents.filter((b) => b.status === "Düşüyor").length}</b>
             </span>
           </div>
@@ -126,21 +132,21 @@ export function DynamicWorldControls({ shot }: { shot: Shot }) {
             disabled={s.bounceBusy || !!f.bounceError}
             onClick={replaySpill}
           >
-            Devrilme ve dökülmeyi oynat
+            {t("Devrilme ve dökülmeyi oynat")}
           </button>
           <p>
-            Her top serbesttir: hareketli duvar, diğer toplar ve zeminle
-            çarpışır. HIVE ile birlikte sabitlenmez. Kesikli çizgiler topların
-            izlediği yollardır.
+            {t(
+              "Her top serbesttir: hareketli duvar, diğer toplar ve zeminle çarpışır. HIVE ile birlikte sabitlenmez. Kesikli çizgiler topların izlediği yollardır.",
+            )}
           </p>
           <details>
-            <summary>Top top hareketi izle</summary>
+            <summary>{t("Top top hareketi izle")}</summary>
             <table className="resident-motion-table">
               <thead>
                 <tr>
-                  <th>Top</th>
-                  <th>Durum</th>
-                  <th>Hız</th>
+                  <th>{t("Top (POLLEN)")}</th>
+                  <th>{t("Durum")}</th>
+                  <th>{t("Hız")}</th>
                   <th>Spin</th>
                 </tr>
               </thead>
@@ -148,7 +154,7 @@ export function DynamicWorldControls({ shot }: { shot: Shot }) {
                 {residents.map((ball) => (
                   <tr key={ball.id}>
                     <td style={{ color: ball.color }}>● {ball.id}</td>
-                    <td>{ball.status}</td>
+                    <td>{t(ball.status)}</td>
                     <td>{ball.speed.toFixed(2)} m/s</td>
                     <td>
                       {(
@@ -167,26 +173,25 @@ export function DynamicWorldControls({ shot }: { shot: Shot }) {
       <label className="dynamic-check">
         <input
           type="checkbox"
-          aria-label="Delikli POLLEN geometrisi"
+          aria-label={t("Delikli POLLEN geometrisi")}
           checked={p.shapeModel === "pollen"}
           onChange={(e) =>
             edit({ shapeModel: e.target.checked ? "pollen" : "sphere" })
           }
         />
-        Delikli POLLEN · yönelime bağlı temas
+        {t("Delikli POLLEN · yönelime bağlı temas")}
       </label>
       <p>
-        26 delik ve içi boş kabuk CAD'den alındı. Delik kenarı ve ovalite temas
-        noktasını değiştirir; bu noktadaki darbe topun dönüşünü de değiştirir.
+        {t(
+          "26 delik ve içi boş kabuk CAD'den alındı. Delik kenarı ve ovalite temas noktasını değiştirir; bu noktadaki darbe topun dönüşünü de değiştirir.",
+        )}
       </p>
       <details>
-        <summary>HIVE dengesi ve başlangıç hareketi</summary>
+        <summary>{t("HIVE dengesi ve başlangıç hareketi")}</summary>
         <p>
-          Resmî 7/8 POLLEN deneyi arka duvarda yükle kalibre edilir. Model top
-          sayısına göre devrilme komutu vermez: yükün yeri ve darbe torku
-          belirler. Atalet, sönüm ve eşik yaklaşık değerlerdir. Topun ağırlığı
-          veya çapı değişince HIVE yeniden dengelenmez; aşağıdaki referans top
-          sabit tutulur.
+          {t(
+            "Resmî 7/8 POLLEN deneyi arka duvarda yükle kalibre edilir. Model top sayısına göre devrilme komutu vermez: yükün yeri ve darbe torku belirler. Atalet, sönüm ve eşik yaklaşık değerlerdir. Topun ağırlığı veya çapı değişince HIVE yeniden dengelenmez; aşağıdaki referans top sabit tutulur.",
+          )}
         </p>
         <div className="bounce-settings">
           {slider(
@@ -268,7 +273,7 @@ export function DynamicWorldControls({ shot }: { shot: Shot }) {
             })
           }
         >
-          Seçili topu denge referansı yap
+          {t("Seçili topu denge referansı yap")}
         </button>
         <button
           onClick={() =>
@@ -287,16 +292,17 @@ export function DynamicWorldControls({ shot }: { shot: Shot }) {
             })
           }
         >
-          8 POLLEN ile yük deneyi
+          {t("8 POLLEN ile yük deneyi")}
         </button>
         <p>
-          Referans tutma torku: {f.hiveCalibrationTorque?.toFixed(3) ?? "—"}{" "}
-          N·m. İki CELL birlikte döner; damper uçtaki darbeyi sönümler. Arka
-          plandaki diğer ittifakın HIVE'ı bu deneyde sabittir.
+          {t.f(
+            "Referans tutma torku: {torque} N·m. İki CELL birlikte döner; damper uçtaki darbeyi sönümler. Arka plandaki diğer ittifakın HIVE'ı bu deneyde sabittir.",
+            { torque: f.hiveCalibrationTorque?.toFixed(3) ?? "—" },
+          )}
         </p>
       </details>
       <details>
-        <summary>Topun şekli, yönelimi ve spin</summary>
+        <summary>{t("Topun şekli, yönelimi ve spin")}</summary>
         <div className="bounce-settings">
           {slider(
             "Çaptan sapma / ovalite",
@@ -318,7 +324,7 @@ export function DynamicWorldControls({ shot }: { shot: Shot }) {
           )}
           {["X", "Y", "Z"].map((axis, i) =>
             slider(
-              `İlk yönelim · ${axis}`,
+              t.f("İlk yönelim · {axis}", { axis }),
               deg(orientation[i]),
               -180,
               180,
@@ -333,23 +339,22 @@ export function DynamicWorldControls({ shot }: { shot: Shot }) {
           )}
         </div>
         <p>
-          Ovalite başlangıçta %1 varsayılır; ölçülen topa göre değiştir. Delikli
-          kabuğun ataleti hesaplanır. Temas, delik kenarlarının destek
-          yaklaşımıdır; deliklerin birbirine geçmesi ve ayrıntılı hava akışı
-          çözülmez. Sürükleme/Magnus katsayıları ölçüm gerektirir.
+          {t(
+            "Ovalite başlangıçta %1 varsayılır; ölçülen topa göre değiştir. Delikli kabuğun ataleti hesaplanır. Temas, delik kenarlarının destek yaklaşımıdır; deliklerin birbirine geçmesi ve ayrıntılı hava akışı çözülmez. Sürükleme/Magnus katsayıları ölçüm gerektirir.",
+          )}
         </p>
       </details>
       {!!f.hiveTrack?.length && (
         <details>
-          <summary>HIVE açısı ve devrilme zamanları</summary>
+          <summary>{t("HIVE açısı ve devrilme zamanları")}</summary>
           <svg
             className="bounce-chart"
             viewBox="0 0 600 145"
             role="img"
-            aria-label="HIVE açı grafiği"
+            aria-label={t("HIVE açı grafiği")}
           >
             <text x="20" y="15">
-              HIVE açısı · −30° → +30°
+              {t("HIVE açısı · −30° → +30°")}
             </text>
             <polyline
               fill="none"
@@ -392,11 +397,14 @@ export function DynamicWorldControls({ shot }: { shot: Shot }) {
                   })
                 }
               >
-                Devrilme {i + 1} · {v.t.toFixed(2)} s → göster
+                {t.f("Devrilme {n} · {time} s → göster", {
+                  n: i + 1,
+                  time: v.t.toFixed(2),
+                })}
               </button>
             ))
           ) : (
-            <p>Bu senaryoda karşı durdurucuya ulaşan devrilme yok.</p>
+            <p>{t("Bu senaryoda karşı durdurucuya ulaşan devrilme yok.")}</p>
           )}
         </details>
       )}

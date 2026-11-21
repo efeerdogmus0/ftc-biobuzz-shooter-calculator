@@ -9,8 +9,49 @@ import { getPath, parseConfig } from "../utils/config";
 import { ForMode } from "./ForMode";
 import { atLeast } from "../app/uiMode";
 import { RobotCard } from "./RobotSetup";
+import { useT } from "../i18n/useT";
+const overlayLabels: Record<string, string> = {
+  axes: "Axes",
+  origin: "Origin",
+  velocity: "Velocity vector",
+  center: "Ball center",
+  tangent: "Launch tangent",
+  target: "Target opening",
+  collisions: "Collision geometry",
+  measurements: "Measurements",
+  aim: "Aim line",
+  forces: "Contact forces",
+  spin: "Spin axis",
+  markers: "Markers",
+  field: "Field model",
+};
+const motorLabels = [
+  "Voltage",
+  "Battery resistance",
+  "Stator current limit",
+  "Supply current limit",
+  "Efficiency",
+  "Gear reduction",
+  "kV",
+  "kA",
+  "kP",
+  "Winding resistance",
+  "Torque constant",
+];
+const topologyLabels: Record<string, string> = {
+  passive: "Primary + passive hood",
+  powered: "Primary + powered hood",
+  opposing: "Opposing wheels",
+  compound: "Compound shooter",
+};
+const linkLabels: Record<string, string> = {
+  surface: "Lock surface speed ratio",
+  gear: "Gear ratio linked",
+  independent: "Independent RPM",
+};
 export function RobotControls() {
   const s = useStore();
+  const t = useT();
   return (
     <Section title="Robot pose">
       <div className="two-col">
@@ -49,7 +90,7 @@ export function RobotControls() {
         className="wide secondary"
         onClick={() => s.setConfig(aim(s.config))}
       >
-        ↗ Aim at HIVE
+        {t("↗ Aim at HIVE")}
       </button>
       <div className="two-col">
         <Toggle
@@ -64,15 +105,15 @@ export function RobotControls() {
         />
       </div>
       <label className="select-control">
-        Position snap
+        {t("Position snap")}
         <select
           value={s.snap}
           onChange={(e) => s.set({ snap: Number(e.target.value) })}
         >
-          <option value={0}>Free movement</option>
+          <option value={0}>{t("Free movement")}</option>
           <option value={0.05}>50 mm</option>
           <option value={0.1}>100 mm</option>
-          <option value={0.6096}>Tile grid · 24 in</option>
+          <option value={0.6096}>{t("Tile grid · 24 in")}</option>
         </select>
       </label>
       <div className="button-row">
@@ -90,7 +131,7 @@ export function RobotControls() {
               s.setConfig(aim(c));
             }}
           >
-            Pose {i + 1}
+            {t.f("Pose {n}", { n: i + 1 })}
           </button>
         ))}
       </div>
@@ -101,10 +142,11 @@ function Wheel({ path, title }: { path: string; title: string }) {
   const c = useStore((s) => s.config),
     edit = useStore((s) => s.edit),
     w = getPath(c, path) as WheelConfig;
+  const t = useT();
   return (
     <Section title={title}>
       <N
-        label={`${title} diameter`}
+        label={t.f("{title} diameter", { title: t(title) })}
         path={`${path}.diameter`}
         kind="diameter"
         min={0.005}
@@ -142,7 +184,7 @@ function Wheel({ path, title }: { path: string; title: string }) {
         />
       )}
       <p className="muted">
-        I = {wheelInertia(w)?.toExponential(4) ?? "unknown"} kg·m²
+        I = {wheelInertia(w)?.toExponential(4) ?? t("unknown")} kg·m²
       </p>
     </Section>
   );
@@ -152,8 +194,9 @@ function HoodRollerGeometry({ path, title }: { path: string; title: string }) {
     (s) => getPath(s.config, `${path}.diameter`) as number,
   );
   const edit = useStore((s) => s.edit);
+  const t = useT();
   return (
-    <Section title={`${title} contact geometry`}>
+    <Section title={t.f("{title} contact geometry", { title: t(title) })}>
       <N
         label="Mount angle"
         path={`${path}.angle`}
@@ -214,14 +257,15 @@ function HoodRollerGeometry({ path, title }: { path: string; title: string }) {
 export function ShooterControls({ shot }: { shot: Shot }) {
   const s = useStore(),
     c = s.config;
+  const t = useT();
   return (
     <>
       <div className="control-heading">
-        <span>SHOOTER SETTINGS</span>
+        <span>{t("SHOOTER SETTINGS")}</span>
         <span className="tiny-dot" />
       </div>
       <RobotCard />
-      <ForMode min="hard">
+      <ForMode min="advanced">
         <Section title="Shooter model" open>
           <Select
             label="Shooter model"
@@ -244,28 +288,30 @@ export function ShooterControls({ shot }: { shot: Shot }) {
           slider={false}
         />
         <N
-          label={`Main wheel RPM (${(c.shooter.primary.diameter * 1000).toFixed(0)} mm)`}
+          label={t.f("Main wheel RPM ({d} mm)", {
+            d: (c.shooter.primary.diameter * 1000).toFixed(0),
+          })}
           path="shooter.primary.omega"
           kind="rpm"
           max={c.simulation.maxOmega}
           step={(2 * Math.PI) / 60}
         />
         <div className="inline-metric">
-          <span>Surface velocity</span>
+          <span>{t("Surface velocity")}</span>
           <strong>
             {shot.shooter.surfaceSpeeds[0].toFixed(2)} <small>m/s</small>
           </strong>
         </div>
-        {!atLeast(s.uiMode, "medium") && c.shooter.topology !== "passive" && (
+        {!atLeast(s.uiMode, "advanced") && c.shooter.topology !== "passive" && (
           <div className="inline-metric">
-            <span>Hood / second wheel</span>
+            <span>{t("Hood / second wheel")}</span>
             <strong>
               {toRPM(wheelSpeeds(c)[1]).toFixed(0)} <small>RPM</small> ·{" "}
               {shot.shooter.surfaceSpeeds[1].toFixed(2)} <small>m/s</small>
             </strong>
           </div>
         )}
-        <ForMode min="medium">
+        <ForMode min="advanced">
           <Select
             label="Wheel coupling"
             path="shooter.link"
@@ -300,7 +346,7 @@ export function ShooterControls({ shot }: { shot: Shot }) {
                 unit=":1"
               />
               <div className="inline-metric">
-                <span>Hood wheel RPM / surface speed</span>
+                <span>{t("Hood wheel RPM / surface speed")}</span>
                 <strong>
                   {toRPM(wheelSpeeds(c)[1]).toFixed(0)} <small>RPM</small> ·{" "}
                   {shot.shooter.surfaceSpeeds[1].toFixed(2)} <small>m/s</small>
@@ -330,7 +376,7 @@ export function ShooterControls({ shot }: { shot: Shot }) {
           min={0.05}
           max={2}
         />
-        <ForMode min="medium">
+        <ForMode min="advanced">
           <div className="two-col">
             <N
               label="Minimum hood"
@@ -346,13 +392,14 @@ export function ShooterControls({ shot }: { shot: Shot }) {
             />
           </div>
           <p className="muted">
-            0° horizontal · 90° upward. Launch tangent:{" "}
-            {toDeg(c.shooter.hoodAngle + c.shooter.hoodOffset).toFixed(1)}°
+            {t.f("0° horizontal · 90° upward. Launch tangent: {a}°", {
+              a: toDeg(c.shooter.hoodAngle + c.shooter.hoodOffset).toFixed(1),
+            })}
           </p>
         </ForMode>
       </Section>
       <RobotControls />
-      <ForMode min="hard">
+      <ForMode min="advanced">
         <Section title="Exit & hood geometry">
           <N
             label="Exit X offset"
@@ -371,7 +418,7 @@ export function ShooterControls({ shot }: { shot: Shot }) {
           {[0, 1, 2].map((i) => (
             <N
               key={i}
-              label={`Turret center ${"XYZ"[i]}`}
+              label={t.f("Turret center {axis}", { axis: "XYZ"[i] })}
               path={`robot.turretCenter.${i}`}
               kind="diameter"
               min={-0.5}
@@ -408,12 +455,21 @@ export function ShooterControls({ shot }: { shot: Shot }) {
           />
         </Section>
       </ForMode>
-      <ForMode min="medium">
+      <ForMode min="advanced">
         <Section title="Compression & contact">
           <p className="muted">
-            Hood/second wheels: {1 + c.shooter.rollers.length} contact
-            {c.shooter.rollers.length ? "s" : ""} · mechanism{" "}
-            {c.shooter.topology} · coupling {c.shooter.link}.
+            {t.f(
+              c.shooter.rollers.length
+                ? "Hood/second wheels: {n} contacts · mechanism {topology} · coupling {link}."
+                : "Hood/second wheels: {n} contact · mechanism {topology} · coupling {link}.",
+              {
+                n: 1 + c.shooter.rollers.length,
+                topology: t(
+                  topologyLabels[c.shooter.topology] ?? c.shooter.topology,
+                ),
+                link: t(linkLabels[c.shooter.link] ?? c.shooter.link),
+              },
+            )}
           </p>
           <Select
             label="Mechanism"
@@ -433,11 +489,16 @@ export function ShooterControls({ shot }: { shot: Shot }) {
             step={0.0001}
           />
           <p className="muted">
-            Gap = diameter − compression ={" "}
-            {((c.projectile.diameter - c.shooter.compression) * 1000).toFixed(
-              2,
-            )}{" "}
-            mm · compression {(c.shooter.compression / 0.0254).toFixed(3)} in
+            {t.f(
+              "Gap = diameter − compression = {gap} mm · compression {inch} in",
+              {
+                gap: (
+                  (c.projectile.diameter - c.shooter.compression) *
+                  1000
+                ).toFixed(2),
+                inch: (c.shooter.compression / 0.0254).toFixed(3),
+              },
+            )}
           </p>
           <N label="Friction coefficient" path="shooter.friction" max={2} />
           <Select
@@ -480,7 +541,7 @@ export function ShooterControls({ shot }: { shot: Shot }) {
               ])
             }
           >
-            + Add powered hood roller
+            {t("+ Add powered hood roller")}
           </button>
           <HoodRollerGeometry
             path="shooter.secondary"
@@ -490,15 +551,15 @@ export function ShooterControls({ shot }: { shot: Shot }) {
             <div key={i}>
               <HoodRollerGeometry
                 path={`shooter.rollers.${i}`}
-                title={`Sushi hood wheel ${i + 2}`}
+                title={t.f("Sushi hood wheel {n}", { n: i + 2 })}
               />
               <Wheel
                 path={`shooter.rollers.${i}`}
-                title={`Sushi hood wheel ${i + 2}`}
+                title={t.f("Sushi hood wheel {n}", { n: i + 2 })}
               />
               {c.shooter.link === "independent" && (
                 <N
-                  label={`Roller ${i + 2} speed`}
+                  label={t.f("Roller {n} speed", { n: i + 2 })}
                   path={`shooter.rollers.${i}.omega`}
                   kind="rpm"
                   max={10000}
@@ -512,19 +573,21 @@ export function ShooterControls({ shot }: { shot: Shot }) {
                   )
                 }
               >
-                Remove roller {i + 2}
+                {t.f("Remove roller {n}", { n: i + 2 })}
               </button>
             </div>
           ))}
         </Section>
       </ForMode>
-      <ForMode min="hard">
+      <ForMode min="advanced">
         <Wheel path="shooter.primary" title="Main wheel" />
         <Wheel path="shooter.secondary" title="Hood / second wheel 1" />
         <Section title="Motor & flywheel">
           <p className="muted">
-            {c.shooter.motor.name}. Electrical constants are editable estimates
-            unless measured.
+            {t.f(
+              "{motor}. Electrical constants are editable estimates unless measured.",
+              { motor: t(c.shooter.motor.name) },
+            )}
           </p>
           {(
             [
@@ -543,7 +606,7 @@ export function ShooterControls({ shot }: { shot: Shot }) {
           ).map((key, i) => (
             <N
               key={key}
-              label={key}
+              label={motorLabels[i]}
               path={`shooter.motor.${key}`}
               min={0.00001}
               max={[24, 0.5, 200, 100, 1, 20, 1, 1, 2, 10, 1][i]}
@@ -587,13 +650,14 @@ export function ShooterControls({ shot }: { shot: Shot }) {
 function ForceTable() {
   const c = useStore((s) => s.config),
     edit = useStore((s) => s.edit);
+  const t = useT();
   return (
     <>
       <table>
         <thead>
           <tr>
-            <th>Compression mm</th>
-            <th>Force N</th>
+            <th>{t("Compression mm")}</th>
+            <th>{t("Force N")}</th>
           </tr>
         </thead>
         <tbody>
@@ -602,7 +666,12 @@ function ForceTable() {
               {pair.map((v, j) => (
                 <td key={j}>
                   <input
-                    aria-label={`Force curve row ${i + 1} ${j === 0 ? "compression mm" : "force N"}`}
+                    aria-label={t.f(
+                      j === 0
+                        ? "Force curve row {n} compression mm"
+                        : "Force curve row {n} force N",
+                      { n: i + 1 },
+                    )}
                     type="number"
                     min={0}
                     value={v * (j === 0 ? 1000 : 1)}
@@ -622,8 +691,9 @@ function ForceTable() {
         </tbody>
       </table>
       <p className="muted">
-        Piecewise linear interpolation; endpoint force held outside measured
-        range.
+        {t(
+          "Piecewise linear interpolation; endpoint force held outside measured range.",
+        )}
       </p>
     </>
   );
@@ -631,12 +701,14 @@ function ForceTable() {
 export function PhysicsControls() {
   const s = useStore(),
     c = s.config;
+  const t = useT();
   return (
     <>
       <Section title="POLLEN projectile" open>
         <p className="muted">
-          Nominal POLLEN is 2.8 in / 71.12 mm and 25 g. Diameter remains
-          editable for real-game-piece variation.
+          {t(
+            "Nominal POLLEN is 2.8 in / 71.12 mm and 25 g. Diameter remains editable for real-game-piece variation.",
+          )}
         </p>
         <Select
           label="Projectile model"
@@ -667,8 +739,9 @@ export function PhysicsControls() {
           unit="m/s"
         />
         <p className="muted">
-          Spin shooter temasından otomatik hesaplanır; beslenen top başlangıçta
-          dönmüyor kabul edilir.
+          {t(
+            "Spin shooter temasından otomatik hesaplanır; beslenen top başlangıçta dönmüyor kabul edilir.",
+          )}
         </p>
         <Toggle
           label="Use custom ball inertia"
@@ -718,7 +791,7 @@ export function PhysicsControls() {
         />
         {c.aero.liftModel === "sawicki" && (
           <p className="muted">
-            Baseball-derived fit; uncalibrated for perforated POLLEN.
+            {t("Baseball-derived fit; uncalibrated for perforated POLLEN.")}
           </p>
         )}
         <N label="Lift slope Cl / S" path="aero.liftSlope" max={3} />
@@ -760,12 +833,12 @@ export function PhysicsControls() {
             )
           }
         >
-          Derive ρ from sea-level pressure + altitude
+          {t("Derive ρ from sea-level pressure + altitude")}
         </button>
         {[0, 1, 2].map((i) => (
           <N
             key={i}
-            label={`Wind ${"XYZ"[i]}`}
+            label={t.f("Wind {axis}", { axis: "XYZ"[i] })}
             path={`environment.wind.${i}`}
             min={-10}
             max={10}
@@ -780,7 +853,7 @@ export function PhysicsControls() {
           unit="m/s²"
         />
       </Section>
-      <ForMode min="hard">
+      <ForMode min="advanced">
         <Section title="Shoot on the move">
           <Toggle
             label="Add chassis velocity to launch"
@@ -790,7 +863,7 @@ export function PhysicsControls() {
           {[0, 1, 2].map((i) => (
             <N
               key={i}
-              label={`Robot velocity ${"XYZ"[i]}`}
+              label={t.f("Robot velocity {axis}", { axis: "XYZ"[i] })}
               path={`robot.velocity.${i}`}
               min={-4}
               max={4}
@@ -841,8 +914,9 @@ export function PhysicsControls() {
             slider={false}
           />
           <p className="muted">
-            Numerical tolerance ≠ experimental accuracy. RK45 steps are
-            independent of rendering.
+            {t(
+              "Numerical tolerance ≠ experimental accuracy. RK45 steps are independent of rendering.",
+            )}
           </p>
         </Section>
       </ForMode>
@@ -852,13 +926,13 @@ export function PhysicsControls() {
 export function FieldControls() {
   const s = useStore(),
     c = s.config;
+  const t = useT();
   return (
     <>
       <div className="notice">
-        Competition HIVE is centered on the FIELD in the published deployed 30°
-        position. The blue upward CELL is the active scoring volume; its
-        pentagonal opening is used for entry checks. Loaded-CELL motion and
-        retention are evaluated in the bounce simulation.
+        {t(
+          "Competition HIVE is centered on the FIELD in the published deployed 30° position. The blue upward CELL is the active scoring volume; its pentagonal opening is used for entry checks. Loaded-CELL motion and retention are evaluated in the bounce simulation.",
+        )}
       </div>
       <Section title="Field & scoring volume" open>
         <Toggle
@@ -883,7 +957,7 @@ export function FieldControls() {
         {[0, 1, 2].map((i) => (
           <N
             key={i}
-            label={`Target center ${"XYZ"[i]}`}
+            label={t.f("Target center {axis}", { axis: "XYZ"[i] })}
             path={`field.target.center.${i}`}
             min={i === 2 ? 0.1 : -3}
             max={3}
@@ -925,22 +999,22 @@ export function FieldControls() {
           max={Math.PI}
           kind="angle"
         />
-        <p className="muted">{c.field.target.provenance}</p>
-        <p className="muted">{c.field.hive.provenance}</p>
+        <p className="muted">{t(c.field.target.provenance)}</p>
+        <p className="muted">{t(c.field.hive.provenance)}</p>
         <a
           href="https://ftc-resources.firstinspires.org/ftc/game/manual-09"
           target="_blank"
           rel="noreferrer"
         >
-          FIRST · official arena manual ↗
+          {t("FIRST · official arena manual ↗")}
         </a>
       </Section>
-      <ForMode min="hard">
+      <ForMode min="advanced">
         <Section title="Debug overlays" open>
           <label className="select-control">
-            Trajectory color
+            {t("Trajectory color")}
             <select
-              aria-label="Trajectory color"
+              aria-label={t("Trajectory color")}
               value={s.trajectoryColor}
               onChange={(e) =>
                 s.set({
@@ -948,18 +1022,18 @@ export function FieldControls() {
                 })
               }
             >
-              <option value="status">Entry status</option>
-              <option value="speed">Speed · cool to warm</option>
-              <option value="time">Flight time · cool to warm</option>
+              <option value="status">{t("Entry status")}</option>
+              <option value="speed">{t("Speed · cool to warm")}</option>
+              <option value="time">{t("Flight time · cool to warm")}</option>
               <option value="vertical">
-                Vertical velocity · descending to rising
+                {t("Vertical velocity · descending to rising")}
               </option>
             </select>
           </label>
           {Object.entries(s.overlays).map(([key, v]) => (
             <Toggle
               key={key}
-              label={key}
+              label={overlayLabels[key] ?? key}
               checked={v}
               onChange={(value) =>
                 s.set({ overlays: { ...s.overlays, [key]: value } })
@@ -969,11 +1043,12 @@ export function FieldControls() {
         </Section>
         <Section title="Field CAD">
           <p className="muted">
-            Import a self-contained GLB, in meters, Z-up. CAD is a visual
-            reference; collision geometry stays explicit in the profile.
+            {t(
+              "Import a self-contained GLB, in meters, Z-up. CAD is a visual reference; collision geometry stays explicit in the profile.",
+            )}
           </p>
           <input
-            aria-label="Import field GLB"
+            aria-label={t("Import field GLB")}
             type="file"
             accept=".glb"
             onChange={(e) => {
@@ -991,7 +1066,7 @@ export function FieldControls() {
                 s.set({ cadURL: null });
               }}
             >
-              Remove CAD
+              {t("Remove CAD")}
             </button>
           )}
         </Section>
@@ -1004,13 +1079,14 @@ export function ProfileEditor() {
   const s = useStore(),
     [value, setValue] = useState(""),
     [error, setError] = useState("");
+  const t = useT();
   return (
     <Section title="Advanced profile JSON">
       <button onClick={() => setValue(JSON.stringify(s.config, null, 2))}>
-        Read current configuration
+        {t("Read current configuration")}
       </button>
       <textarea
-        aria-label="Advanced profile JSON"
+        aria-label={t("Advanced profile JSON")}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         rows={16}
@@ -1025,9 +1101,9 @@ export function ProfileEditor() {
           }
         }}
       >
-        Validate & apply JSON
+        {t("Validate & apply JSON")}
       </button>
-      <p className="muted">{error}</p>
+      <p className="muted">{t(error)}</p>
     </Section>
   );
 }

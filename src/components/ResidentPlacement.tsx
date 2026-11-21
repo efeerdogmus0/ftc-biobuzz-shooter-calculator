@@ -8,11 +8,13 @@ import {
   residentPositions,
 } from "../physics/collisionWorld";
 import { clamp } from "../physics/math";
+import { useT } from "../i18n/useT";
 export function ResidentPlacement() {
   const s = useStore(),
     c = s.config,
     t = c.field.target,
     r = c.projectile.diameter / 2;
+  const tr = useT();
   const [selected, setSelected] = useState(0),
     [draft, setDraft] = useState<Vec3[]>([]),
     [error, setError] = useState("");
@@ -62,14 +64,15 @@ export function ResidentPlacement() {
     point = draft[index];
   return (
     <div className="resident-placement">
-      <strong>Topları kendin yerleştir</strong>
+      <strong>{tr("Topları kendin yerleştir")}</strong>
       <p>
-        Üstten görünüm: topları sürükle. Bırakınca yerçekimiyle oturtup atışı
-        yeniden hesaplar. Bu görünüm yalnızca başlangıç konumlarını gösterir.
+        {tr(
+          "Üstten görünüm: topları sürükle. Bırakınca yerçekimiyle oturtup atışı yeniden hesaplar. Bu görünüm yalnızca başlangıç konumlarını gösterir.",
+        )}
       </p>
       <svg
         viewBox={`0 0 500 ${height + 55}`}
-        aria-label="CELL içindeki topların başlangıç yerleşimi"
+        aria-label={tr("CELL içindeki topların başlangıç yerleşimi")}
         role="group"
         onPointerMove={(e) => {
           if (!dragging.current || !point) return;
@@ -102,17 +105,17 @@ export function ResidentPlacement() {
           strokeWidth="2"
         />
         <text x="250" y="14" textAnchor="middle">
-          GİRİŞ
+          {tr("GİRİŞ")}
         </text>
         <text x="250" y={height + 44} textAnchor="middle">
-          ARKA TABAN
+          {tr("ARKA TABAN")}
         </text>
         {draft.map((p, i) => (
           <g
             key={i}
             role="button"
             tabIndex={0}
-            aria-label={`Top ${i + 1} yerleşimi`}
+            aria-label={tr.f("Top {n} yerleşimi", { n: i + 1 })}
             onPointerDown={(e) => {
               e.preventDefault();
               setSelected(i);
@@ -167,17 +170,17 @@ export function ResidentPlacement() {
                 aria-pressed={i === index}
                 onClick={() => setSelected(i)}
               >
-                Top {i + 1}
+                {tr.f("Top {id}", { id: i + 1 })}
               </button>
             ))}
           </div>
           <label>
-            Seçili topun alt kenardan yüksekliği{" "}
+            {tr("Seçili topun alt kenardan yüksekliği")}{" "}
             <output>
               {Math.round((point[1] + t.height / 2 - r) * 1000)} mm
             </output>
             <input
-              aria-label="Seçili topun yüksekliği"
+              aria-label={tr("Seçili topun yüksekliği")}
               type="range"
               min="0"
               max={Math.max(
@@ -198,13 +201,13 @@ export function ResidentPlacement() {
             />
           </label>
           <button className="placement-apply" onClick={commit}>
-            Yerleşimi uygula ve oturt
+            {tr("Yerleşimi uygula ve oturt")}
           </button>
         </>
       )}
       {error && (
         <p className="placement-error" role="status">
-          {error}
+          {tr(error)}
         </p>
       )}
     </div>

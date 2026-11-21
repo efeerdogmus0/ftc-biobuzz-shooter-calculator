@@ -25,15 +25,15 @@ export const mechanisms: {
 }[] = [
   {
     id: "wheel-driven-hood",
-    label: "Teker + tahrikli hood rulmanları",
+    label: "Teker + tahrikli hood tekerlekleri",
     description:
-      "Alttaki ana teker topu, motorla döndürülen hood rulmanlarına karşı sıkıştırır. Rulmanlar dişliyle bağlı ya da ayrı motorlu olabilir.",
+      "Alttaki ana teker topu, motorla döndürülen hood tekerleklerine karşı sıkıştırır. Hood tekerlekleri ana tekere dişliyle bağlı ya da ayrı motorlu olabilir.",
   },
   {
     id: "wheel-fixed-hood",
     label: "Teker + sabit (dönmeyen) hood",
     description:
-      "Yalnız ana teker tahriklidir; top sabit bir hood yüzeyine sürtünerek çıkar ve geri spin alır. Serbest dönen (avara) hood rulmanları bu modelde YOK.",
+      "Yalnız ana teker tahriklidir; top sabit bir hood yüzeyine sürtünerek çıkar ve geri spin alır. Serbest dönen (avara) hood tekerlekleri bu modelde YOK.",
   },
   {
     id: "twin-wheel",
@@ -93,6 +93,49 @@ export const exampleSpec: RobotSpec = {
   hoodMinDeg: 35,
   hoodMaxDeg: 80,
 };
+
+/**
+ * Sandbox robots: one ready-made example per mechanism, to play with before
+ * (or instead of) entering real measurements. Round numbers, nobody's robot,
+ * not measured and not tuned to score.
+ */
+export const sandboxSpecs: { spec: RobotSpec; blurb: string }[] = [
+  {
+    spec: exampleSpec,
+    blurb:
+      "Eşit hızlı iki teker; çıkış hızı teker yüzey hızına yakın, az spin.",
+  },
+  {
+    spec: {
+      ...exampleSpec,
+      name: "Sandbox · 96 mm teker + 3 tahrikli hood tekerleği",
+      mechanism: "wheel-driven-hood",
+      wheelDiameter: 0.096,
+      wheelRPM: 2400,
+      hoodRollers: 3,
+      rollerDiameter: 0.024,
+      drive: "gear",
+      ratio: 3,
+      secondRPM: 7200,
+      hoodAngleDeg: 55,
+    },
+    blurb: "Hood tekerlekleri de motorla döner; topa daha az geri spin verir.",
+  },
+  {
+    spec: {
+      ...exampleSpec,
+      name: "Sandbox · 96 mm teker + sabit hood",
+      mechanism: "wheel-fixed-hood",
+      wheelDiameter: 0.096,
+      wheelRPM: 3200,
+      hoodRollers: 3,
+      rollerDiameter: 0.024,
+      hoodAngleDeg: 55,
+    },
+    blurb:
+      "En basit yapı: tek motor, top sabit hood'a sürtünür ve geri spin alır.",
+  },
+];
 
 /** Starting values for "Robotumu kur": a neutral form, not a recommendation. */
 export function blankSpec(): RobotSpec {

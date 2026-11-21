@@ -6,7 +6,9 @@ import { norm } from "../physics/math";
 import { sampleAerodynamics } from "../physics/aerodynamics";
 import { shotKineticEnergy } from "../physics/launchDynamics";
 import { shapeAxes } from "../physics/pollenShape";
+import { useT } from "../i18n/useT";
 export function Telemetry({ shot }: { shot: Shot }) {
+  const t = useT();
   const [chart, setChart] = useState("Trajectory"),
     [hover, setHover] = useState<number | null>(null);
   const f = shot.flight,
@@ -54,9 +56,9 @@ export function Telemetry({ shot }: { shot: Shot }) {
   return (
     <div className="telemetry">
       <div className="telemetry-title">
-        <span>FLIGHT TELEMETRY</span>
+        <span>{t("FLIGHT TELEMETRY")}</span>
         <select
-          aria-label="Telemetry chart"
+          aria-label={t("Telemetry chart")}
           value={chart}
           onChange={(e) => setChart(e.target.value)}
         >
@@ -69,13 +71,16 @@ export function Telemetry({ shot }: { shot: Shot }) {
             "Magnus acceleration",
             "Energy",
           ].map((v) => (
-            <option key={v}>{v}</option>
+            <option key={v} value={v}>
+              {t(v)}
+            </option>
           ))}
         </select>
         <span className="muted">
           {chart === "Trajectory"
-            ? "range m / height m"
-            : "time s / " +
+            ? t("range m / height m")
+            : t("time s") +
+              " / " +
               ({
                 Speed: "m/s",
                 "Vertical velocity": "m/s",
@@ -89,7 +94,7 @@ export function Telemetry({ shot }: { shot: Shot }) {
       <svg
         viewBox="0 0 610 155"
         role="img"
-        aria-label={`${chart} graph`}
+        aria-label={t.f("{chart} graph", { chart: t(chart) })}
         onMouseMove={(e) =>
           setHover(
             (e.clientX - e.currentTarget.getBoundingClientRect().left) /
@@ -145,7 +150,10 @@ export function Telemetry({ shot }: { shot: Shot }) {
               fill="#f5e7c8"
             />
             <text x="250" y="15">
-              t {h.t.toFixed(3)} s · value {h.y.toFixed(3)}
+              {t.f("t {t} s · value {value}", {
+                t: h.t.toFixed(3),
+                value: h.y.toFixed(3),
+              })}
             </text>
           </>
         )}
@@ -154,6 +162,7 @@ export function Telemetry({ shot }: { shot: Shot }) {
   );
 }
 export function Metrics({ shot }: { shot: Shot }) {
+  const t = useT();
   const s = shot.shooter,
     f = shot.flight;
   const value = (x: number | null | undefined, precision = 3) =>
@@ -227,21 +236,22 @@ export function Metrics({ shot }: { shot: Shot }) {
     <div className="metric-table">
       {rows.map(([label, v, unit]) => (
         <div key={label}>
-          <span>{label}</span>
+          <span>{t(label)}</span>
           <strong>
             {v} <small>{unit}</small>
           </strong>
         </div>
       ))}
       <p className="muted">
-        — = unknown, requires inertia / motor measurement. During contact, motor
-        input is excluded; stored wheel energy and battery replenishment are
-        separate.
+        {t(
+          "— = unknown, requires inertia / motor measurement. During contact, motor input is excluded; stored wheel energy and battery replenishment are separate.",
+        )}
       </p>
     </div>
   );
 }
 export function CrossSection({ shot }: { shot: Shot }) {
+  const t = useT();
   const [animate, setAnimate] = useState(false),
     [time, setTime] = useState(0),
     last = useRef(0);
@@ -274,9 +284,9 @@ export function CrossSection({ shot }: { shot: Shot }) {
   return (
     <div className="cross-section">
       <div className="telemetry-title">
-        <span>SHOOTER SECTION · SCHEMATIC</span>
+        <span>{t("SHOOTER SECTION · SCHEMATIC")}</span>
         <button onClick={() => setAnimate(!animate)}>
-          {animate ? "Pause" : "Animate contact"}
+          {animate ? t("Pause") : t("Animate contact")}
         </button>
       </div>
       <svg viewBox="0 0 360 220">
@@ -316,27 +326,30 @@ export function CrossSection({ shot }: { shot: Shot }) {
           strokeDasharray="4 4"
         />
         <text x="255" y="137">
-          0° horizontal
+          {t("0° horizontal")}
         </text>
         <text x="12" y="20">
           Ø {(c.shooter.primary.diameter * 1000).toFixed(0)} mm /{" "}
           {(c.shooter.secondary.diameter * 1000).toFixed(0)} mm
         </text>
         <text x="12" y="207">
-          compression {(c.shooter.compression * 1000).toFixed(1)} mm
+          {t.f("compression {mm} mm", {
+            mm: (c.shooter.compression * 1000).toFixed(1),
+          })}
         </text>
       </svg>
       {row && (
         <p className="mono">
-          N {row.normal.toFixed(1)} N · Ft {row.force.toFixed(1)} N · slip{" "}
-          {row.slip.toFixed(3)} m/s
-          <br />v {row.velocity.toFixed(2)} m/s · spin{" "}
+          N {row.normal.toFixed(1)} N · Ft {row.force.toFixed(1)} N ·{" "}
+          {t("slip")} {row.slip.toFixed(3)} m/s
+          <br />v {row.velocity.toFixed(2)} m/s · {t("spin")}{" "}
           {toRPM(row.spin).toFixed(0)} RPM
         </p>
       )}
       <p className="muted">
-        Lumped simultaneous contact model; this schematic does not assert
-        sequential roller engagement.
+        {t(
+          "Lumped simultaneous contact model; this schematic does not assert sequential roller engagement.",
+        )}
       </p>
     </div>
   );

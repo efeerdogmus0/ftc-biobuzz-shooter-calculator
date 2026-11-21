@@ -1,5 +1,6 @@
 import { useStore } from "../state/store";
 import { getPath } from "../utils/config";
+import { useT } from "../i18n/useT";
 export type Unit = "angle" | "rpm" | "length" | "diameter" | "mass" | "none";
 export function unitInfo(kind: Unit, si: boolean): [number, string] {
   if (si)
@@ -50,6 +51,9 @@ export function NumberInput({
   tip,
   slider = true,
 }: NumberProps) {
+  const t = useT();
+  label = t(label);
+  tip = tip && t(tip);
   const c = useStore((s) => s.config),
     units = useStore((s) => s.units),
     edit = useStore((s) => s.edit);
@@ -112,6 +116,8 @@ export function Select({
   options: [string, string][];
   hideLabel?: boolean;
 }) {
+  const t = useT();
+  label = t(label);
   const value = useStore((s) => getPath(s.config, path)),
     edit = useStore((s) => s.edit);
   return (
@@ -124,7 +130,7 @@ export function Select({
       >
         {options.map(([v, l]) => (
           <option key={v} value={v}>
-            {l}
+            {t(l)}
           </option>
         ))}
       </select>
@@ -140,6 +146,7 @@ export function Toggle({
   checked: boolean;
   onChange: (v: boolean) => void;
 }) {
+  const t = useT();
   return (
     <label className="toggle">
       <input
@@ -147,7 +154,7 @@ export function Toggle({
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
       />
-      <span>{label}</span>
+      <span>{t(label)}</span>
     </label>
   );
 }
@@ -160,10 +167,11 @@ export function Section({
   children: React.ReactNode;
   open?: boolean;
 }) {
+  const t = useT();
   return (
     <details className="section" open={open}>
       <summary>
-        {title}
+        {t(title)}
         <span>+</span>
       </summary>
       <div className="section-content">{children}</div>

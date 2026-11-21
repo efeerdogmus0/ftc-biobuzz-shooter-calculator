@@ -10,6 +10,7 @@ import { deg, toDeg } from "../utils/units";
 import { downloadJSON } from "../utils/config";
 import type { Config } from "../physics/types";
 import { ballModelSettings } from "../physics/launchDynamics";
+import { useT } from "../i18n/useT";
 
 interface Report {
   config: Config;
@@ -17,7 +18,13 @@ interface Report {
   results: PositionStudy[];
 }
 
-export function AngleStudyPanel() {
+export function AngleStudyPanel({
+  onUse,
+}: {
+  /** "Bu noktayı kullan": robot to (x, y) with this launch angle (rad). */
+  onUse?: (x: number, y: number, angle: number) => void;
+}) {
+  const t = useT();
   const c = useStore((s) => s.config);
   const settings = useStore((s) => s.bounceSettings);
   const [spacing, setSpacing] = useState(0.5);
@@ -38,7 +45,7 @@ export function AngleStudyPanel() {
     setError("");
     setReport(null);
     setBusy(true);
-    setProgress("Preparing field grid…");
+    setProgress(t("Preparing field grid…"));
     const config = structuredClone(c);
     const min = c.shooter.hoodMin + c.shooter.hoodOffset;
     const max = c.shooter.hoodMax + c.shooter.hoodOffset;
@@ -65,7 +72,12 @@ export function AngleStudyPanel() {
       if (worker.current !== job) return;
       const message = event.data;
       if (message.type === "progress")
-        setProgress(`${message.done} / ${message.total} field positions`);
+        setProgress(
+          t.f("{done} / {total} field positions", {
+            done: message.done,
+            total: message.total,
+          }),
+        );
       if (message.type === "result") {
         setReport({ config, options, results: message.results });
         cancel();
@@ -92,9 +104,9 @@ export function AngleStudyPanel() {
   return (
     <Section title="Shot angle study" open>
       <p className="tool-intro">
-        Scan the field for entry angles and exit-speed windows using the active
-        shooter and target. The target is fixed during this study; bounce,
-        resident balls and retention are evaluated in the main simulation.
+        {t(
+          "Scan the field for entry angles and exit-speed windows using the active shooter and target. The target is fixed during this study; bounce, resident balls and retention are evaluated in the main simulation.",
+        )}
       </p>
       <div className="tool-toolbar">
         <N
@@ -116,9 +128,9 @@ export function AngleStudyPanel() {
           slider={false}
         />
         <button className="primary" disabled={busy} onClick={run}>
-          Run angle study
+          {t("Run angle study")}
         </button>
-        {busy && <button onClick={cancel}>Cancel study</button>}
+        {busy && <button onClick={cancel}>{t("Cancel study")}</button>}
         {report && (
           <button
             onClick={() =>
@@ -132,7 +144,7 @@ export function AngleStudyPanel() {
               })
             }
           >
-            Export angle study
+            {t("Export angle study")}
           </button>
         )}
       </div>
@@ -144,7 +156,7 @@ export function AngleStudyPanel() {
       )}
       {stale && (
         <p className="notice">
-          Shooter settings changed. Run again to update these results.
+          {t("Shooter settings changed. Run again to update these results.")}
         </p>
       )}
       {report && (
@@ -153,15 +165,16 @@ export function AngleStudyPanel() {
             <strong>
               {reachable} / {report.results.length}
             </strong>{" "}
-            sampled positions have an entry window within{" "}
-            {report.options.speedMax.toFixed(1)} m/s. Finite sampling can miss
-            narrow windows.
+            {t.f(
+              "sampled positions have an entry window within {speed} m/s. Finite sampling can miss narrow windows.",
+              { speed: report.options.speedMax.toFixed(1) },
+            )}
           </p>
           <div className="study-layout">
             <svg
               className="study-map"
               viewBox="-2 -2 4 4"
-              aria-label="Angle study field map"
+              aria-label={t("Angle study field map")}
             >
               <rect
                 x={-c.field.size / 2}
@@ -180,17 +193,18 @@ export function AngleStudyPanel() {
                   r={report.options.spacing * 0.22}
                   fill={p.windows.length ? "var(--accent)" : "var(--border)"}
                 >
-                  <title>{`X ${p.x.toFixed(2)}, Y ${p.y.toFixed(2)}: ${p.windows.length ? "entry window" : "no sampled entry"}`}</title>
+                  <title>{`X ${p.x.toFixed(2)}, Y ${p.y.toFixed(2)}: ${p.windows.length ? t("entry window") : t("no sampled entry")}`}</title>
                 </circle>
               ))}
             </svg>
             <div className="reference-table">
-              <table aria-label="Angle study results">
+              <table aria-label={t("Angle study results")}>
                 <thead>
                   <tr>
                     <th>X / Y (m)</th>
-                    <th>Candidate angle</th>
-                    <th>Exit speed (m/s)</th>
+                    <th>{t("Candidate angle")}</th>
+                    <th>{t("Exit speed (m/s)")}</th>
+                    {onUse && <th />}
                   </tr>
                 </thead>
                 <tbody>
@@ -207,8 +221,19 @@ export function AngleStudyPanel() {
                         <td>
                           {best
                             ? `${best.lo.toFixed(2)}–${best.hi.toFixed(2)}`
-                            : "No window"}
+                            : t("No window")}
                         </td>
+                        {onUse && (
+                          <td>
+                            {best && (
+                              <button
+                                onClick={() => onUse(p.x, p.y, best.angle)}
+                              >
+                                {t("Bu noktayı kullan")}
+                              </button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -219,12 +244,9 @@ export function AngleStudyPanel() {
         </>
       )}
       <p className="muted">
-        Exit speeds are prescribed within the design limit, with spin scaled
-        from the shooter. Candidate angles compare speed tolerance and a 1° hood
-        error where adjacent angle samples are available; otherwise only speed
-        tolerance is compared. It does not establish an achievable motor RPM or
-        scoring probability. Study method contributed by Tuna / FTC #25577
-        Zağanos.
+        {t(
+          "Exit speeds are prescribed within the design limit, with spin scaled from the shooter. Candidate angles compare speed tolerance and a 1° hood error where adjacent angle samples are available; otherwise only speed tolerance is compared. It does not establish an achievable motor RPM or scoring probability. Study method contributed by Tuna / FTC #25577 Zağanos.",
+        )}
       </p>
     </Section>
   );

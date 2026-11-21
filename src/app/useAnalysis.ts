@@ -45,7 +45,13 @@ export function useAnalysis() {
     worker.current = null;
     setBusy("");
   };
-  const run = (kind: AnalysisRequest["kind"]) => {
+  /** `over`: run calibration on rows / parameters just built, before state catches up. */
+  const run = (
+    kind: AnalysisRequest["kind"],
+    over: { measurements?: Measurement[]; parameters?: FitParameter[] } = {},
+  ) => {
+    const rows = over.measurements ?? measurements,
+      fitParameters = over.parameters ?? parameters;
     cancel();
     setError("");
     setBusy(kind);
@@ -109,7 +115,7 @@ export function useAnalysis() {
         }
         if (kind === "calibrate") {
           setFit(d.result as CalibrationResult);
-          setFitMeasurements(measurements);
+          setFitMeasurements(rows);
           setFitConfig(configJSON);
           setFitModel(model);
         }
@@ -130,8 +136,8 @@ export function useAnalysis() {
       count,
       seed,
       uncertainty,
-      measurements,
-      parameters,
+      measurements: rows,
+      parameters: fitParameters,
     } satisfies AnalysisRequest);
   };
   return {

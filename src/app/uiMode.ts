@@ -1,55 +1,54 @@
-// Interface complexity only. A mode decides which controls are *shown*; it never
-// changes, resets or ignores any physical input. Hidden inputs keep their values
-// and the solver always uses the complete configuration.
-export type UiMode = "easy" | "medium" | "hard";
+// Interface layout only. A mode decides which layout and controls are *shown*;
+// it never changes, resets or ignores any physical input. Hidden inputs keep
+// their values and the solver always uses the complete configuration.
+//
+// Basit (simple): one focused screen — 3D field, the robot card, the few
+// settings a team actually touches, Fire / Auto solve and a plain result.
+// Gelişmiş (advanced): the full engineering workbench (model tree, telemetry,
+// physics, analysis, calibration, debug).
+export type UiMode = "simple" | "advanced";
 export const UI_MODE_KEY = "pollen-ui-mode";
-const order: Record<UiMode, number> = { easy: 0, medium: 1, hard: 2 };
 
 export const uiModes: { id: UiMode; label: string; description: string }[] = [
   {
-    id: "easy",
-    label: "Kolay",
+    id: "simple",
+    label: "Basit arayüz",
     description:
-      "Robot tipi, konum, açı ve RPM; atış, yörünge ve sekme. Gizli ayarlar değerlerini korur.",
+      "Tek ekran: saha, robotun, birkaç temel ayar, Atış yap / Otomatik çöz ve anlaşılır sonuç. Gizli ayarlar değerlerini korur.",
   },
   {
-    id: "medium",
-    label: "Orta",
+    id: "advanced",
+    label: "Gelişmiş arayüz",
     description:
-      "Kolay + teker/hood bağlantısı, sıkışma ve temas, POLLEN, aero, saha ve HIVE/temas ayarları.",
-  },
-  {
-    id: "hard",
-    label: "Zor (Gelişmiş)",
-    description:
-      "Tüm mühendislik tezgâhı: motor, sayısal integrasyon, analiz, kalibrasyon ve hata ayıklama.",
+      "Tam mühendislik tezgâhı: model ağacı, telemetri, fizik, saha, analiz, kalibrasyon ve hata ayıklama.",
   },
 ];
 
 export function atLeast(mode: UiMode, min: UiMode) {
-  return order[mode] >= order[min];
+  return min === "simple" || mode === "advanced";
 }
 
 /**
- * A mode the user chose is kept. Without a choice everyone starts in Kolay:
- * having saved work is not a sign of wanting the full workbench.
+ * A layout the user chose is kept. Older three-step choices map onto the two
+ * layouts (Kolay → Basit; Orta / Zor → Gelişmiş). Without a choice everyone
+ * starts in Basit: having saved work is not a sign of wanting the workbench.
  */
 export function initialUiMode(storage: Pick<Storage, "getItem">): UiMode {
   const saved = storage.getItem(UI_MODE_KEY);
-  if (saved === "easy" || saved === "medium" || saved === "hard") return saved;
-  return "easy";
+  if (saved === "simple" || saved === "easy") return "simple";
+  if (saved === "advanced" || saved === "medium" || saved === "hard")
+    return "advanced";
+  return "simple";
 }
 
-// Analysis is in every mode so Auto solve never forces a mode change; inside
-// the panel, heavier tools are shown from Orta/Zor.
+// The advanced workbench shows every tab. The simple layout has no tab strip;
+// these lists describe what each layout can reach.
 export const propertyTabsFor = (mode: UiMode) =>
-  mode === "easy"
-    ? ["Shooter", "Analysis", "Sekiş"]
-    : ["Shooter", "Physics", "Field", "Analysis", "Sekiş"];
+  mode === "simple"
+    ? ["Shooter", "Analysis", "Sekiş", "Limelight"]
+    : ["Shooter", "Physics", "Field", "Analysis", "Sekiş", "Limelight"];
 
 export const bottomTabsFor = (mode: UiMode) =>
-  mode === "easy"
+  mode === "simple"
     ? ["Flight telemetry", "Shot history"]
-    : mode === "medium"
-      ? ["Flight telemetry", "Shot metrics", "Shot history"]
-      : ["Flight telemetry", "Shot metrics", "Shot history", "Debug state"];
+    : ["Flight telemetry", "Shot metrics", "Shot history", "Debug state"];

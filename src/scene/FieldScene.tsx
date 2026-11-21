@@ -24,10 +24,12 @@ import {
 } from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { useStore } from "../state/store";
+import { goToCell, goToPoint } from "../app/shotPoints";
 import { defaultScenario } from "../utils/scenario";
 import type { Shot, Vec3 } from "../physics/types";
 import { shooterPose, sampleAt, aim } from "../physics/flight";
 import { HiveModel } from "./HiveModel";
+import { VisionOverlay } from "./VisionOverlay";
 import { PollenBall } from "./PollenBall";
 import { createHive, hiveTarget } from "../physics/hiveDynamics";
 import { Flowers } from "./FlowerModel";
@@ -817,10 +819,8 @@ function World({ shot }: { shot: Shot }) {
   const palette = new Color();
   return (
     <>
-      <color
-        attach="background"
-        args={[s.theme === "dark" ? "#242b35" : "#ffffff"]}
-      />
+      {/* Light theme: transparent, so the warm Builder canvas shows through. */}
+      {s.theme === "dark" && <color attach="background" args={["#1f1712"]} />}
       <ambientLight intensity={1.3} />
       <directionalLight position={[2, -3, 7]} intensity={2} />
       <Camera shot={shot} />
@@ -1078,7 +1078,26 @@ function World({ shot }: { shot: Shot }) {
           color = palette.setHSL(0.34 * (1 - t), 0.55, 0.5).getStyle();
         }
         return (
-          <mesh key={i} position={[cell.x, cell.y, 0.008]}>
+          <mesh
+            key={i}
+            position={[cell.x, cell.y, 0.008]}
+            onClick={
+              v
+                ? (e) => {
+                    // A click, not the end of an orbit drag.
+                    if (e.delta > 4) return;
+                    e.stopPropagation();
+                    goToCell(cell.x, cell.y, v);
+                  }
+                : undefined
+            }
+            onPointerOver={
+              v ? () => (document.body.style.cursor = "pointer") : undefined
+            }
+            onPointerOut={
+              v ? () => (document.body.style.cursor = "") : undefined
+            }
+          >
             <planeGeometry
               args={[s.heatSpacing * 0.93, s.heatSpacing * 0.93]}
             />
@@ -1086,6 +1105,25 @@ function World({ shot }: { shot: Shot }) {
           </mesh>
         );
       })}
+      {s.overlays.markers &&
+        s.shotPoints.map((p) => (
+          <group key={p.id} position={[p.x, p.y, 0.012]}>
+            <mesh
+              onClick={(e) => {
+                if (e.delta > 4) return;
+                e.stopPropagation();
+                goToPoint(p);
+              }}
+            >
+              <ringGeometry args={[0.045, 0.062, 32]} />
+              <meshBasicMaterial color="#2f6fd8" />
+            </mesh>
+            <Html position={[0, 0, 0.02]} center className="scene-label point">
+              {p.name}
+            </Html>
+          </group>
+        ))}
+      <VisionOverlay />
       {s.cadURL && (
         <Suspense fallback={null}>
           <CAD url={s.cadURL} />

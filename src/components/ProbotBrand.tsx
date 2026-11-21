@@ -1,3 +1,5 @@
+import { useStore } from "../state/store";
+import type { Lang } from "../i18n";
 // Probot Studio brand mark, copied from the official site's inline SVG
 // (probotstudio.com); white body + orange face on the 150° amber→orange tile.
 export function ProbotMark({ size = 26 }: { size?: number }) {
@@ -30,24 +32,36 @@ export function ProbotMark({ size = 26 }: { size?: number }) {
 }
 
 const SITE = "https://probotstudio.com";
-// Probot Studio tools named by the coordinator from the live site; opened in a new tab.
-const links: [string, string][] = [
-  ["Araçlar", `${SITE}/araclar/`],
-  ["Sim", `${SITE}/sim/`],
-  ["Builder", `${SITE}/builder/`],
-  ["Blocks", `${SITE}/blocks/`],
-  ["Eğitim", `${SITE}/egitim/`],
-  ["Dokümanlar", `${SITE}/docs/`],
-];
+// Same navigation as the Probot Builder header (probotstudio.com/builder, read
+// 1 Nov 2026), per language. "tools" is current: this simulator is a tool.
+const links: Record<Lang, [id: string, label: string, href: string][]> = {
+  tr: [
+    ["home", "Ana sayfa", `${SITE}/`],
+    ["shop", "Mağaza", `${SITE}/shop/`],
+    ["tools", "Araçlar", `${SITE}/araclar/`],
+    ["learn", "Eğitim", `${SITE}/egitim/`],
+    ["docs", "Dokümanlar", `${SITE}/docs/`],
+    ["about", "Hakkımızda", `${SITE}/hakkimizda/`],
+  ],
+  en: [
+    ["home", "Home", `${SITE}/en/`],
+    ["shop", "Shop", `${SITE}/shop/?dil=en`],
+    ["tools", "Tools", `${SITE}/en/araclar/`],
+    ["learn", "Learn", `${SITE}/en/egitim/`],
+    ["docs", "Docs", `${SITE}/docs/`],
+    ["about", "About us", `${SITE}/en/hakkimizda/`],
+  ],
+};
 
 export function ProbotBrand() {
+  const lang = useStore((s) => s.lang);
   return (
     <a
       className="probot-brand"
-      href={`${SITE}/`}
+      href={lang === "en" ? `${SITE}/en/` : `${SITE}/`}
       target="_blank"
       rel="noreferrer"
-      title="Probot Studio ana sayfa"
+      title={lang === "en" ? "Probot Studio home" : "Probot Studio ana sayfa"}
     >
       <ProbotMark />
       <span className="probot-name">Probot Studio</span>
@@ -57,13 +71,35 @@ export function ProbotBrand() {
 }
 
 export function ProbotNav() {
+  const lang = useStore((s) => s.lang);
+  const setLang = useStore((s) => s.setLang);
+  const other: Lang = lang === "en" ? "tr" : "en";
   return (
     <nav className="probot-nav" aria-label="Probot Studio">
-      {links.map(([label, href]) => (
-        <a key={href} href={href} target="_blank" rel="noreferrer">
+      {links[lang].map(([id, label, href]) => (
+        <a
+          key={id}
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          aria-current={id === "tools" ? "page" : undefined}
+        >
           {label}
         </a>
       ))}
+      {/* Like Probot's `dil-sec` link: switches language and remembers it. */}
+      <a
+        className="dil-sec"
+        href={`?dil=${other}`}
+        lang={other}
+        title={other === "en" ? "Switch to English" : "Türkçeye geç"}
+        onClick={(e) => {
+          e.preventDefault();
+          setLang(other);
+        }}
+      >
+        {other.toUpperCase()}
+      </a>
     </nav>
   );
 }

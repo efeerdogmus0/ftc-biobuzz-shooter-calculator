@@ -55,6 +55,8 @@ export function solve(
   progress: Progress = () => {},
   fast = false,
   ballModel?: BallModelSettings,
+  /** How many of the best answers to return; the shot table needs every angle. */
+  limit = 8,
 ): Candidate[] {
   const c = aim(input),
     results: Candidate[] = [];
@@ -154,7 +156,7 @@ export function solve(
     }
     progress((i + 1) / (n + 1));
   }
-  return results.sort((a, b) => a.score - b.score).slice(0, 8);
+  return results.sort((a, b) => a.score - b.score).slice(0, limit);
 }
 export function coverage(
   c: Config,
@@ -578,10 +580,8 @@ export function parseMeasurements(value: unknown, maxTime = 30): Measurement[] {
   });
 }
 
-/** Fingerprint of everything that determines a predicted shot, minus name and the badge flag. */
-export function calibrationStamp(c: Config, ballModel: BallModelSettings) {
+function fnv(text: string) {
   // 2×32-bit FNV-1a: a compact consistency check for files/links, not a security hash.
-  const text = physicsStamp({ ...c, name: "", calibrated: false }, ballModel);
   let a = 0x811c9dc5,
     b = 0x01000193 ^ 0x5bd1e995;
   for (let i = 0; i < text.length; i++) {
@@ -589,7 +589,66 @@ export function calibrationStamp(c: Config, ballModel: BallModelSettings) {
     a = Math.imul(a ^ ch, 0x01000193) >>> 0;
     b = Math.imul(b ^ ch, 0x5bd1e995) >>> 0;
   }
-  return `v1-${a.toString(16).padStart(8, "0")}${b.toString(16).padStart(8, "0")}`;
+  return `${a.toString(16).padStart(8, "0")}${b.toString(16).padStart(8, "0")}`;
+}
+/**
+ * Fingerprint of the robot and ball physics a calibration belongs to.
+ * Leaves out what every stored row carries itself — where the robot stood
+ * (pose, motion) and the shot command (wheel speeds, hood angle) — so driving
+ * the robot or trying another RPM keeps the badge. Rows are stored with their
+ * pose baked in (`bakeMeasurements`), so the check does not depend on it.
+ */
+export function calibrationStamp(c: Config, ballModel: BallModelSettings) {
+  const q = structuredClone(c);
+  q.name = "";
+  q.calibrated = false;
+  q.robot.x = q.robot.y = q.robot.heading = q.robot.turretYaw = 0;
+  q.robot.velocity = [0, 0, 0];
+  q.shooter.hoodAngle = 0;
+  q.shooter.primary.omega = 0;
+  q.shooter.secondary.omega = 0;
+  // Linked/passive extra rollers follow the main wheel; their stored command is unused.
+  if (q.shooter.link !== "independent" || q.shooter.topology === "passive")
+    q.shooter.rollers.forEach((r) => (r.omega = 0));
+  return `v2-${fnv(physicsStamp(q, ballModel))}`;
+}
+/** The pre-November stamp: everything, pose included. Only for upgrading old files. */
+export function legacyCalibrationStamp(
+  c: Config,
+  ballModel: BallModelSettings,
+) {
+  return `v1-${fnv(physicsStamp({ ...c, name: "", calibrated: false }, ballModel))}`;
+}
+/** Stores each row with the robot pose (and independent extra roller speeds) it was taken with. */
+export function bakeMeasurements(
+  c: Config,
+  rows: Measurement[],
+): Measurement[] {
+  const independent =
+    c.shooter.link === "independent" && c.shooter.topology !== "passive";
+  return rows.map((r) => ({
+    ...structuredClone(r),
+    robot: structuredClone(r.robot ?? c.robot),
+    ...(independent && r.rollerRPMs === undefined && c.shooter.rollers.length
+      ? { rollerRPMs: c.shooter.rollers.map((w) => (w.omega * 30) / Math.PI) }
+      : {}),
+  }));
+}
+/**
+ * One-time upgrade of a v1 calibration whose old stamp still matches: the
+ * rows get the pose they were verified with, and the new stamp. Anything
+ * else (already v2, or stale) is returned unchanged.
+ */
+export function upgradeCalibration<
+  T extends { stamp: string; measurements: Measurement[] },
+>(c: Config, ballModel: BallModelSettings, cal: T): T {
+  if (!cal.stamp.startsWith("v1-")) return cal;
+  if (legacyCalibrationStamp(c, ballModel) !== cal.stamp) return cal;
+  return {
+    ...cal,
+    stamp: calibrationStamp(c, ballModel),
+    measurements: bakeMeasurements(c, cal.measurements),
+  };
 }
 
 export interface CalibrationVerification {

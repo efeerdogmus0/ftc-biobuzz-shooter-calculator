@@ -15,6 +15,7 @@ import { deg } from "../utils/units";
 import { launchInertia } from "../physics/launchDynamics";
 import { simulateShooter } from "../physics/shooter";
 import { downloadJSON } from "../utils/config";
+import { useT } from "../i18n/useT";
 
 const mm = (x: number | null) => (x === null ? "—" : (x * 1000).toFixed(0));
 
@@ -24,6 +25,7 @@ const mm = (x: number | null) => (x === null ? "—" : (x * 1000).toFixed(0));
  * point, with panel-local CAD overrides.
  */
 export function ClearancePanel() {
+  const t = useT();
   const c = useStore((s) => s.config);
   const settings = useStore((s) => s.bounceSettings);
   const [overrides, setOverrides] = useState<Partial<ShooterGeometry>>({});
@@ -110,11 +112,12 @@ export function ClearancePanel() {
     return (
       <Section title="Shooter clearance" open>
         <p role="alert" className="notice">
-          Ball did not exit the shooter. Adjust the contact settings before
-          computing a launch envelope.
+          {t(
+            "Ball did not exit the shooter. Adjust the contact settings before computing a launch envelope.",
+          )}
         </p>
         <button onClick={() => setOverrides({})}>
-          Reset geometry to shooter
+          {t("Reset geometry to shooter")}
         </button>
       </Section>
     );
@@ -122,24 +125,24 @@ export function ClearancePanel() {
     turret = safeHeights(e, -g.wheelForward, shot.margin);
   const safeText = (h: ReturnType<typeof safeHeights>) =>
     !h.withinRange
-      ? "Outside traced range"
+      ? t("Outside traced range")
       : h.clearAll
-        ? "No overlap in traced paths"
-        : `below ${mm(h.below)} mm / ${h.above! > e.options.clearUp ? "upper region beyond trace" : `above ${mm(h.above)} mm`}`;
+        ? t("No overlap in traced paths")
+        : `${t.f("below {mm} mm", { mm: mm(h.below) })} / ${h.above! > e.options.clearUp ? t("upper region beyond trace") : t.f("above {mm} mm", { mm: mm(h.above) })}`;
   return (
     <Section title="Shooter clearance" open>
       <p className="tool-intro">
-        Wheel and ball dimensions follow the active shooter. The wheel axis is
-        estimated from its release point and circular hood. Replace the
-        estimates with CAD measurements below.
+        {t(
+          "Wheel and ball dimensions follow the active shooter. The wheel axis is estimated from its release point and circular hood. Replace the estimates with CAD measurements below.",
+        )}
       </p>
       <div className="tool-toolbar">
         <span>
-          Exit spin: <strong>{autoSpin.toFixed(1)} RPM</strong> · from shooter
-          settings
+          {t("Exit spin:")} <strong>{autoSpin.toFixed(1)} RPM</strong> ·{" "}
+          {t("from shooter settings")}
         </span>
         <button onClick={() => setOverrides({})}>
-          Reset geometry to shooter
+          {t("Reset geometry to shooter")}
         </button>
         <button
           onClick={() =>
@@ -152,7 +155,7 @@ export function ClearancePanel() {
             })
           }
         >
-          Export envelope
+          {t("Export envelope")}
         </button>
       </div>
       <div className="clearance-layout">
@@ -160,7 +163,7 @@ export function ClearancePanel() {
           <svg
             className="legacy-chart clearance-chart"
             viewBox={`0 0 ${W} ${H}`}
-            aria-label="Clearance envelope side view"
+            aria-label={t("Clearance envelope side view")}
             style={{ color: "inherit" }}
           >
             {expanded.flatMap((st) =>
@@ -255,7 +258,7 @@ export function ClearancePanel() {
               fontSize="8"
               fill="currentColor"
             >
-              turret axis
+              {t("turret axis")}
             </text>
             <line
               x1={0}
@@ -266,39 +269,47 @@ export function ClearancePanel() {
             />
           </svg>
           <p className="muted">
-            Orange: swept ball. Blue: clearance margin in every direction.
-            Lines: ball-center paths. Dashed circle: hood path radius {mm(R)}{" "}
-            mm.
+            {t.f(
+              "Orange: swept ball. Blue: clearance margin in every direction. Lines: ball-center paths. Dashed circle: hood path radius {mm} mm.",
+              { mm: mm(R) },
+            )}
           </p>
-          <table aria-label="Clearance summary">
+          <table aria-label={t("Clearance summary")}>
             <tbody>
               <tr>
-                <td>Wheel-axis vertical line</td>
+                <td>{t("Wheel-axis vertical line")}</td>
                 <td>{safeText(axis)}</td>
               </tr>
               <tr>
-                <td>Turret-axis vertical line</td>
+                <td>{t("Turret-axis vertical line")}</td>
                 <td>{safeText(turret)}</td>
               </tr>
               <tr>
-                <td>Lateral, from shooter plane</td>
-                <td>clear beyond {mm(e.halfWidth + shot.margin)} mm</td>
+                <td>{t("Lateral, from shooter plane")}</td>
+                <td>
+                  {t.f("clear beyond {mm} mm", {
+                    mm: mm(e.halfWidth + shot.margin),
+                  })}
+                </td>
               </tr>
               <tr>
-                <td>Sampled shot set</td>
-                <td>{e.paths.length} angle / speed combinations</td>
+                <td>{t("Sampled shot set")}</td>
+                <td>
+                  {t.f("{n} angle / speed combinations", {
+                    n: e.paths.length,
+                  })}
+                </td>
               </tr>
             </tbody>
           </table>
           <p className="muted">
-            Heights relative to the wheel axis; results cover only the traced
-            local paths, up to 0.6 m ahead/above. Sphere envelope in still air.
-            Feed path, robot motion and HIVE retention are outside this tool.
-            Speed sweep uses the automatic shooter spin/speed ratio.
+            {t(
+              "Heights relative to the wheel axis; results cover only the traced local paths, up to 0.6 m ahead/above. Sphere envelope in still air. Feed path, robot motion and HIVE retention are outside this tool. Speed sweep uses the automatic shooter spin/speed ratio.",
+            )}
           </p>
         </div>
         <div className="clearance-settings">
-          <h3>Geometry & shot sweep</h3>
+          <h3>{t("Geometry & shot sweep")}</h3>
           <div className="two-col">
             <N
               label="Wheel diameter"
@@ -403,8 +414,9 @@ export function ClearancePanel() {
             />
           </div>
           <p className="muted">
-            Geometry overrides stay in this tool. Active shooter settings are
-            unchanged.
+            {t(
+              "Geometry overrides stay in this tool. Active shooter settings are unchanged.",
+            )}
           </p>
         </div>
       </div>

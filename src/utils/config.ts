@@ -250,6 +250,16 @@ export function parseConfig(value: unknown): Config {
     throw new Error("Nonphysical coefficient.");
   return structuredClone(c);
 }
+export function downloadText(name: string, text: string, type = "text/plain") {
+  const url = URL.createObjectURL(
+    new Blob([text], { type: `${type};charset=utf-8` }),
+  );
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 export function downloadJSON(name: string, data: unknown) {
   const url = URL.createObjectURL(
     new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),

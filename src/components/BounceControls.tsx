@@ -13,15 +13,19 @@ import {
   surfaceNames,
   bouncePalette,
 } from "../utils/bounceView";
+import { useT } from "../i18n/useT";
 export function BounceControls({ shot }: { shot: Shot }) {
   const s = useStore(),
     f = shot.flight,
     events = f.bounces ?? [];
+  const t = useT();
+  const surfaceLabel = (surface: string) => t(surfaceNames[surface] ?? surface);
   if (!shot.shooter.exited)
     return (
       <p role="alert" className="notice">
-        Top shooter’dan çıkamadı; uçuş ve sekiş hesaplanmadı. Shooter
-        sekmesindeki temas ayarlarını düzeltip tekrar dene.
+        {t(
+          "Top shooter’dan çıkamadı; uçuş ve sekiş hesaplanmadı. Shooter sekmesindeki temas ayarlarını düzeltip tekrar dene.",
+        )}
       </p>
     );
   const selected = Math.min(s.selectedBounce, Math.max(0, events.length - 1)),
@@ -113,36 +117,37 @@ export function BounceControls({ shot }: { shot: Shot }) {
   return (
     <div className="bounce-panel">
       <div className="bounce-heading">
-        <strong>Sekiş laboratuvarı</strong>
+        <strong>{t("Sekiş laboratuvarı")}</strong>
         <span>
-          {s.bounceBusy ? (
-            s.bounceProgress || "Hesaplanıyor…"
-          ) : f.bounceError ? (
-            "Ayarı değiştirip yeniden hesapla"
-          ) : (
-            <>
-              {events.length} çarpışma · {end.toFixed(2)} s ·{" "}
-              {f.bounceEnd === "Stopped" ? "Toplar durdu" : "Süre sınırı"}
-            </>
-          )}
+          {s.bounceBusy
+            ? t(s.bounceProgress || "Hesaplanıyor…")
+            : f.bounceError
+              ? t("Ayarı değiştirip yeniden hesapla")
+              : t.f("{n} çarpışma · {time} s · {end}", {
+                  n: events.length,
+                  time: end.toFixed(2),
+                  end: t(
+                    f.bounceEnd === "Stopped" ? "Toplar durdu" : "Süre sınırı",
+                  ),
+                })}
         </span>
       </div>
-      <ForMode min="medium">
+      <ForMode min="advanced">
         <DynamicWorldControls shot={shot} />
         <ContactPhysics shot={shot} />
       </ForMode>
       <div className="resident-scenario">
         <div>
-          <label>CELL içinde başlangıçtaki top sayısı</label>
+          <label>{t("CELL içinde başlangıçtaki top sayısı")}</label>
           <div
             className="count-buttons"
             role="group"
-            aria-label="CELL içindeki top sayısı"
+            aria-label={t("CELL içindeki top sayısı")}
           >
             {Array.from({ length: 9 }, (_, i) => (
               <button
                 key={i}
-                aria-label={`CELL içinde ${i} top`}
+                aria-label={t.f("CELL içinde {n} top", { n: i })}
                 aria-pressed={s.residentCount === i}
                 onClick={() =>
                   changeScenario({
@@ -168,9 +173,9 @@ export function BounceControls({ shot }: { shot: Shot }) {
           </div>
         </div>
         <label>
-          Başlangıç dizilimi
+          {t("Başlangıç dizilimi")}
           <select
-            aria-label="İçerideki topların dizilimi"
+            aria-label={t("İçerideki topların dizilimi")}
             value={s.residentLayout}
             onChange={(e) =>
               changeScenario({
@@ -188,17 +193,19 @@ export function BounceControls({ shot }: { shot: Shot }) {
             }
           >
             <option value="center">
-              {s.residentCount === 8
-                ? "İki sıra örneği · 8 top"
-                : "Tek sıra örneği – orta"}
+              {t(
+                s.residentCount === 8
+                  ? "İki sıra örneği · 8 top"
+                  : "Tek sıra örneği – orta",
+              )}
             </option>
             <option value="left" disabled={s.residentCount === 8}>
-              Tek sıra örneği – sol
+              {t("Tek sıra örneği – sol")}
             </option>
             <option value="right" disabled={s.residentCount === 8}>
-              Tek sıra örneği – sağ
+              {t("Tek sıra örneği – sağ")}
             </option>
-            <option value="manual">Elle yerleştir</option>
+            <option value="manual">{t("Elle yerleştir")}</option>
           </select>
         </label>
         <button
@@ -206,46 +213,46 @@ export function BounceControls({ shot }: { shot: Shot }) {
             s.set({ view: "CELL", cameraReset: s.cameraReset + 1 })
           }
         >
-          CELL yakın plan ↗
+          {t("CELL yakın plan ↗")}
         </button>
       </div>
       {s.residentLayout === "manual" && <ResidentPlacement />}
       <div className="bounce-outcomes">
         <span>
-          {s.bounceBusy
-            ? "Hesaplanıyor… "
-            : shot.flight.bounceError
-              ? "Sonuç üretilemedi · "
-              : "Atılan top: "}
+          {t(
+            s.bounceBusy
+              ? "Hesaplanıyor… "
+              : shot.flight.bounceError
+                ? "Sonuç üretilemedi · "
+                : "Atılan top: ",
+          )}
           <strong>
             {s.bounceBusy || f.bounceError
               ? "—"
-              : f.retainedShot
-                ? "CELL içinde"
-                : "CELL dışında"}
+              : t(f.retainedShot ? "CELL içinde" : "CELL dışında")}
           </strong>
         </span>
         <span>
-          Başlangıçtaki toplardan içeride kalan:{" "}
+          {t("Başlangıçtaki toplardan içeride kalan:")}{" "}
           <strong>
             {s.bounceBusy || f.bounceError
               ? "—"
               : `${f.retainedResidents ?? 0} / ${f.residentCount ?? 0}`}
           </strong>
         </span>
-        <span className="muted">Simülasyon sonundaki konum</span>
+        <span className="muted">{t("Simülasyon sonundaki konum")}</span>
       </div>
       <div className="bounce-playback">
         <button disabled={cannotPlay} onClick={play}>
-          {s.playing ? "Duraklat" : "Oynat"}
+          {t(s.playing ? "Duraklat" : "Oynat")}
         </button>
         <label>
-          Zaman{" "}
+          {t("Zaman")}{" "}
           <output>
             {s.playbackTime.toFixed(2)} / {end.toFixed(2)} s
           </output>
           <input
-            aria-label="Sekiş zaman çizgisi"
+            aria-label={t("Sekiş zaman çizgisi")}
             type="range"
             min="0"
             max={end}
@@ -255,7 +262,7 @@ export function BounceControls({ shot }: { shot: Shot }) {
           />
         </label>
         <select
-          aria-label="Sekiş oynatma hızı"
+          aria-label={t("Sekiş oynatma hızı")}
           value={s.playSpeed}
           onChange={(e) => s.set({ playSpeed: Number(e.target.value) })}
         >
@@ -267,26 +274,28 @@ export function BounceControls({ shot }: { shot: Shot }) {
         </select>
       </div>
       <div className="bounce-path-legend">
-        <span style={{ color: bouncePalette[0] }}>● İlk uçuş</span>
-        <span style={{ color: bouncePalette[1] }}>● Sekiş trajectorysi</span>
+        <span style={{ color: bouncePalette[0] }}>● {t("İlk uçuş")}</span>
+        <span style={{ color: bouncePalette[1] }}>
+          ● {t("Sekiş yörüngesi")}
+        </span>
         <label>
           <input
             type="checkbox"
             checked={s.showResidentPaths}
             onChange={(e) => s.set({ showResidentPaths: e.target.checked })}
           />
-          İçerideki topların yolları
+          {t("İçerideki topların yolları")}
         </label>
       </div>
       <svg
         className="bounce-chart"
         viewBox="0 0 600 170"
         role="img"
-        aria-label="Sekiş trajectorysi"
+        aria-label={t("Sekiş yörüngesi")}
       >
         <line x1="35" x2="565" y1="143" y2="143" stroke="#8aabab66" />
         <text x="35" y="17">
-          Atış yönünde yatay konum / yükseklik (m)
+          {t("Atış yönünde yatay konum / yükseklik (m)")}
         </text>
         <text x="35" y="161">
           {minX.toFixed(2)} m
@@ -327,7 +336,10 @@ export function BounceControls({ shot }: { shot: Shot }) {
               />
               <circle cx={x} cy={y} r="3.5" fill={track.color}>
                 <title>
-                  Top {track.id} · {s.playbackTime.toFixed(2)} s
+                  {t.f("Top {id} · {time} s", {
+                    id: track.id,
+                    time: s.playbackTime.toFixed(2),
+                  })}
                 </title>
               </circle>
             </g>
@@ -345,8 +357,11 @@ export function BounceControls({ shot }: { shot: Shot }) {
                 stroke="#142128"
               />
               <title>
-                {i + 1}. çarpışma · {surfaceNames[e.surface] ?? e.surface} ·{" "}
-                {e.t.toFixed(2)} s
+                {t.f("{n}. çarpışma · {surface} · {time} s", {
+                  n: i + 1,
+                  surface: surfaceLabel(e.surface),
+                  time: e.t.toFixed(2),
+                })}
               </title>
             </g>
           );
@@ -357,9 +372,9 @@ export function BounceControls({ shot }: { shot: Shot }) {
         <div className="impact-inspector">
           <div className="impact-picker">
             <label>
-              Çarpışma
+              {t("Çarpışma")}
               <select
-                aria-label="İncelenecek çarpışma"
+                aria-label={t("İncelenecek çarpışma")}
                 value={selected}
                 onChange={(e) =>
                   seek(events[Number(e.target.value)].t, Number(e.target.value))
@@ -369,30 +384,32 @@ export function BounceControls({ shot }: { shot: Shot }) {
                   <option key={i} value={i}>
                     #{i + 1} ·{" "}
                     {e.surface === "Ball"
-                      ? `İçerideki top ${e.otherBallId}`
-                      : (surfaceNames[e.surface] ?? e.surface)}{" "}
+                      ? t.f("İçerideki top {id}", { id: e.otherBallId ?? "" })
+                      : surfaceLabel(e.surface)}{" "}
                     · {e.t.toFixed(2)} s
                   </option>
                 ))}
               </select>
             </label>
             <button onClick={() => seek(Math.max(0, event.t - 0.06))}>
-              Çarpmadan önce
+              {t("Çarpmadan önce")}
             </button>
             <button onClick={() => seek(event.t + 0.04)}>
-              Çarpmadan sonra
+              {t("Çarpmadan sonra")}
             </button>
           </div>
           <div className="impact-metrics">
             <span>
-              Geliş → çıkış hızı
+              {t("Geliş → çıkış hızı")}
               <strong>
                 {norm(event.v).toFixed(2)} → {norm(event.outgoing).toFixed(2)}{" "}
                 m/s
               </strong>
             </span>
             <span>
-              {event.surface === "Ball" ? "Top–top bağıl açı" : "Yüzeyle açı"}
+              {t(
+                event.surface === "Ball" ? "Top–top bağıl açı" : "Yüzeyle açı",
+              )}
               <strong>
                 {incidence.toFixed(1)}° → {outgoingAngle.toFixed(1)}°
               </strong>
@@ -409,7 +426,7 @@ export function BounceControls({ shot }: { shot: Shot }) {
               </strong>
             </span>
             <span>
-              Topun enerji değişimi
+              {t("Topun enerji değişimi")}
               <strong>
                 {(
                   (energy(event.outgoing, event.outgoingSpin ?? event.spin) -
@@ -422,32 +439,36 @@ export function BounceControls({ shot }: { shot: Shot }) {
           </div>
           <div className="impact-metrics">
             <span>
-              Temas süresi
+              {t("Temas süresi")}
               <strong>{((event.duration ?? 0) * 1000).toFixed(2)} ms</strong>
             </span>
             <span>
-              {s.bounceSettings.contactModel === "hertz"
-                ? "Tepe temas kuvveti"
-                : "Adım ortalama kuvveti"}
+              {t(
+                s.bounceSettings.contactModel === "hertz"
+                  ? "Tepe temas kuvveti"
+                  : "Adım ortalama kuvveti",
+              )}
               <strong>{(event.peakForce ?? 0).toFixed(1)} N</strong>
             </span>
             <span>
-              {s.bounceSettings.contactModel === "hertz"
-                ? "En büyük sıkışma"
-                : "Sayısal geçiş"}
+              {t(
+                s.bounceSettings.contactModel === "hertz"
+                  ? "En büyük sıkışma"
+                  : "Sayısal geçiş",
+              )}
               <strong>
                 {((event.maxCompression ?? 0) * 1000).toFixed(2)} mm
               </strong>
             </span>
             <span>
-              Temas davranışı
+              {t("Temas davranışı")}
               <strong>
-                {event.regime === "sliding" ? "Kayma" : "Tutunma"}
+                {t(event.regime === "sliding" ? "Kayma" : "Tutunma")}
               </strong>
             </span>
             {event.hiveAngle !== undefined && (
               <span>
-                HIVE açısı · çarpışma anı
+                {t("HIVE açısı · çarpışma anı")}
                 <strong>
                   {((event.hiveAngle * 180) / Math.PI - 30).toFixed(1)}°
                 </strong>
@@ -455,40 +476,48 @@ export function BounceControls({ shot }: { shot: Shot }) {
             )}
             {event.surfaceVelocity && (
               <span>
-                Temas yüzeyinin hızı
+                {t("Temas yüzeyinin hızı")}
                 <strong>{norm(event.surfaceVelocity).toFixed(3)} m/s</strong>
               </span>
             )}
           </div>
           <p>
-            Mavi ok: gelen hız · turkuaz ok: çıkan hız · pembe ok: yüzey
-            normali. Açı yüzey düzlemine göre: 0° yatay sürtme, 90° dik çarpma.
+            {t(
+              "Mavi ok: gelen hız · turkuaz ok: çıkan hız · pembe ok: yüzey normali. Açı yüzey düzlemine göre: 0° yatay sürtme, 90° dik çarpma.",
+            )}
           </p>
         </div>
       )}
-      <ForMode min="hard">
+      <ForMode min="advanced">
         <details>
-          <summary>Tüm topların çarpışma tablosu</summary>
+          <summary>{t("Tüm topların çarpışma tablosu")}</summary>
           <div className="bounce-table">
             <table>
               <thead>
                 <tr>
-                  <th>Top</th>
-                  <th>Yüzey / top</th>
-                  <th>Zaman</th>
-                  <th>Gelen → çıkan hız</th>
+                  <th>{t("Top (POLLEN)")}</th>
+                  <th>{t("Yüzey / top")}</th>
+                  <th>{t("Zaman")}</th>
+                  <th>{t("Gelen → çıkan hız")}</th>
                 </tr>
               </thead>
               <tbody>
                 {(f.worldEvents ?? events).map((e, i) => (
                   <tr key={i}>
                     <td>
-                      {e.ballId === 0 ? "Atılan" : `İçerideki ${e.ballId}`}
+                      {e.ballId === 0
+                        ? t("Atılan")
+                        : t.f("İçerideki {id}", { id: e.ballId ?? "" })}
                     </td>
                     <td>
                       {e.surface === "Ball"
-                        ? `Top ${e.otherBallId === 0 ? "atılan" : e.otherBallId}`
-                        : (surfaceNames[e.surface] ?? e.surface)}
+                        ? t.f("Top {id}", {
+                            id:
+                              e.otherBallId === 0
+                                ? t("atılan")
+                                : (e.otherBallId ?? ""),
+                          })
+                        : surfaceLabel(e.surface)}
                     </td>
                     <td>{e.t.toFixed(2)} s</td>
                     <td>
@@ -502,13 +531,9 @@ export function BounceControls({ shot }: { shot: Shot }) {
         </details>
       </ForMode>
       <p className="bounce-note">
-        Sıralı dizilimler yerleşim örnekleridir; gerçek birikme dizilimi olarak
-        kabul edilmez. Elle yerleştirilen toplar atıştan önce yerçekimiyle
-        oturtulur; çarpışınca hepsi hareket eder. Seçilen dizilim ve temas
-        modeline göre topların ve hareketli HIVE'ın hareketi birlikte
-        hesaplanır. Gerçek şekil deformasyonu modellenmez. HIT sabit başlangıç
-        CELL'inin giriş geometrisidir; içeride kalmayı alttaki sonuç gösterir.
-        Auto solve topların etkisini hesaba katmaz.
+        {t(
+          "Sıralı dizilimler yerleşim örnekleridir; gerçek birikme dizilimi olarak kabul edilmez. Elle yerleştirilen toplar atıştan önce yerçekimiyle oturtulur; çarpışınca hepsi hareket eder. Seçilen dizilim ve temas modeline göre topların ve hareketli HIVE'ın hareketi birlikte hesaplanır. Gerçek şekil deformasyonu modellenmez. HIT sabit başlangıç CELL'inin giriş geometrisidir; içeride kalmayı alttaki sonuç gösterir. Auto solve topların etkisini hesaba katmaz.",
+        )}
       </p>
     </div>
   );

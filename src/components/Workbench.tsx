@@ -17,6 +17,7 @@ import {
 import { useStore, type CameraView } from "../state/store";
 import type { Shot } from "../physics/types";
 import { norm } from "../physics/math";
+import { useT } from "../i18n/useT";
 
 export interface MenuCommand {
   label: string;
@@ -100,12 +101,13 @@ function Branch({
   icon: ReactNode;
   children: ReactNode;
 }) {
+  const t = useT();
   return (
     <details className="tree-branch" open>
       <summary>
         <ChevronRight className="tree-chevron" size={12} />
         {icon}
-        <span>{title}</span>
+        <span>{t(title)}</span>
       </summary>
       <div className="tree-children">{children}</div>
     </details>
@@ -125,6 +127,7 @@ export function ModelTree({
   view: (view: CameraView) => void;
   bottom: (tab: string) => void;
 }) {
+  const t = useT();
   const s = useStore();
   const leaf = (
     name: string,
@@ -141,13 +144,17 @@ export function ModelTree({
         aria-current={selected ? "true" : undefined}
       >
         {icon}
-        <span>{name}</span>
+        <span>{t(name)}</span>
       </button>
       {toggle && (
         <button
           className="tree-visibility"
-          title={`${visible ? "Hide" : "Show"} ${name}`}
-          aria-label={`${visible ? "Hide" : "Show"} ${name}`}
+          title={t.f(visible ? "Hide {name}" : "Show {name}", {
+            name: t(name),
+          })}
+          aria-label={t.f(visible ? "Hide {name}" : "Show {name}", {
+            name: t(name),
+          })}
           onClick={toggle}
         >
           {visible ? <Eye size={12} /> : <EyeOff size={12} />}
@@ -156,9 +163,9 @@ export function ModelTree({
     </div>
   );
   return (
-    <section className="model-tree dock-panel" aria-label="Model explorer">
+    <section className="model-tree dock-panel" aria-label={t("Model explorer")}>
       <div className="panel-title">
-        <span>Model</span>
+        <span>{t("Model")}</span>
         <Layers size={13} />
       </div>
       <div className="tree-scroll">
@@ -219,7 +226,7 @@ export function ModelTree({
                 },
               )}
               {leaf(
-                `Resident balls (${s.residentCount})`,
+                t.f("Resident balls ({n})", { n: s.residentCount }),
                 <Circle size={13} />,
                 () => select("Sekiş"),
                 tab === "Sekiş",
@@ -238,7 +245,7 @@ export function ModelTree({
                 () => s.set({ showTrajectory: !s.showTrajectory }),
               )}
               {leaf(
-                `Apex (${shot.flight.apex.p[2].toFixed(2)} m)`,
+                t.f("Apex ({h} m)", { h: shot.flight.apex.p[2].toFixed(2) }),
                 <Circle size={10} />,
                 () => {
                   bottom("Flight telemetry");
@@ -255,7 +262,7 @@ export function ModelTree({
       </div>
       <div className="tree-caption">
         <Crosshair size={12} />
-        <span>XY ground plane · Z up</span>
+        <span>{t("XY ground plane · Z up")}</span>
       </div>
     </section>
   );
@@ -267,19 +274,20 @@ export function TrajectoryTable({ shot }: { shot: Shot }) {
     rows = samples.filter(
       (_, i) => i % stride === 0 || i === samples.length - 1,
     );
+  const t = useT();
   return (
     <div className="trajectory-data">
       <div className="data-caption">
-        Trajectory data <span>(ground relative)</span>
+        {t("Trajectory data")} <span>{t("(ground relative)")}</span>
       </div>
       <div className="trajectory-data-scroll">
         <table>
           <thead>
             <tr>
-              <th>Range (m)</th>
-              <th>Height (m)</th>
-              <th>Time (s)</th>
-              <th>Speed (m/s)</th>
+              <th>{t("Range (m)")}</th>
+              <th>{t("Height (m)")}</th>
+              <th>{t("Time (s)")}</th>
+              <th>{t("Speed (m/s)")}</th>
             </tr>
           </thead>
           <tbody>
@@ -312,11 +320,13 @@ export function PanelTitle({
   close?: () => void;
   label?: string;
 }) {
+  const t = useT();
+  const text = label && t(label);
   return (
     <div className="panel-title">
-      <span>{children}</span>
+      <span>{typeof children === "string" ? t(children) : children}</span>
       {close && (
-        <button title={label} aria-label={label} onClick={close}>
+        <button title={text} aria-label={text} onClick={close}>
           <ChevronDown size={13} />
         </button>
       )}

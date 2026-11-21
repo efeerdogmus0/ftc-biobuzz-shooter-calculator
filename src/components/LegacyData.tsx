@@ -1,5 +1,6 @@
 import { Section } from "./Inputs";
 import { downloadJSON } from "../utils/config";
+import { useT } from "../i18n/useT";
 import {
   legacyDistanceIn,
   legacyExcludedPositions,
@@ -12,6 +13,7 @@ import {
 } from "../data/legacy2025";
 /** Read-only view of FTC #25577's 2025-26 (DECODE) measured hits. */
 export function LegacyData() {
+  const t = useT();
   const [d0, d1] = legacyFormulas.validDistanceIn;
   const shots = legacyShots.map((s) => ({
     ...s,
@@ -29,13 +31,14 @@ export function LegacyData() {
   return (
     <Section title="DECODE 2025–26 · Zağanos reference data" open>
       <p className="tool-intro">
-        FTC #25577 Zağanos, DECODE 2025-26: single 4 in flywheel, passive hood,
-        5 in ARTIFACT, DECODE GOAL. Not BIOBUZZ and not a simulator prediction.
+        {t(
+          "FTC #25577 Zağanos, DECODE 2025-26: single 4 in flywheel, passive hood, 5 in ARTIFACT, DECODE GOAL. Not BIOBUZZ and not a simulator prediction.",
+        )}
       </p>
       <div className="tool-toolbar">
         <span>
-          <strong>49</strong> recorded hits · <strong>46</strong> used ·{" "}
-          <strong>7</strong> positions
+          <strong>49</strong> {t("recorded hits")} · <strong>46</strong>{" "}
+          {t("used")} · <strong>7</strong> {t("positions")}
         </span>
         <button
           onClick={() =>
@@ -50,14 +53,14 @@ export function LegacyData() {
             })
           }
         >
-          Export reference data
+          {t("Export reference data")}
         </button>
         <a
           href="https://github.com/efeerdogmus0/ftc-biobuzz-shooter-calculator/pull/1"
           target="_blank"
           rel="noreferrer"
         >
-          Tuna's contribution ↗
+          {t("Tuna's contribution ↗")}
         </a>
       </div>
       <div className="reference-layout">
@@ -65,7 +68,7 @@ export function LegacyData() {
           <svg
             className="legacy-chart"
             viewBox="0 0 260 180"
-            aria-label="Legacy RPM versus distance"
+            aria-label={t("Legacy RPM versus distance")}
           >
             {[3500, 4000, 4500, 5000, 5500, 6000].map((r) => (
               <g key={r}>
@@ -93,14 +96,14 @@ export function LegacyData() {
               </text>
             ))}
             <text className="axis-title" x="148" y="176" textAnchor="middle">
-              Robot distance to goal (in)
+              {t("Robot distance to goal (in)")}
             </text>
             <text
               className="axis-title"
               transform="translate(10 80) rotate(-90)"
               textAnchor="middle"
             >
-              Wheel RPM
+              {t("Wheel RPM")}
             </text>
             {(["min", "max"] as const).map((band) => (
               <polyline
@@ -122,23 +125,23 @@ export function LegacyData() {
             ))}
           </svg>
           <p className="muted">
-            Measured wheel RPM of recorded hits against robot-center distance to
-            Pedro (0, 144) in (x: in, y: RPM). Hollow: position 2,2, excluded by
-            the original analysis. Lines: fitted mean (solid) and min/max
-            (dashed) RPM, {d0}–{d1} in.
+            {t.f(
+              "Measured wheel RPM of recorded hits against robot-center distance to Pedro (0, 144) in (x: in, y: RPM). Hollow: position 2,2, excluded by the original analysis. Lines: fitted mean (solid) and min/max (dashed) RPM, {d0}–{d1} in.",
+              { d0, d1 },
+            )}
           </p>
           <p className="muted">
-            The original measurement spreadsheet is not included in the
-            contribution. Failed attempts were not recorded, so hit probability
-            cannot be inferred.
+            {t(
+              "The original measurement spreadsheet is not included in the contribution. Failed attempts were not recorded, so hit probability cannot be inferred.",
+            )}
           </p>
         </div>
         <div className="reference-table">
           <table>
             <thead>
               <tr>
-                <th>Distance in</th>
-                <th>Hood cmd</th>
+                <th>{t("Distance in")}</th>
+                <th>{t("Hood cmd")}</th>
                 <th>Min RPM</th>
                 <th>Max RPM</th>
               </tr>
@@ -157,16 +160,19 @@ export function LegacyData() {
         </div>
       </div>
       <p className="muted">
-        Fits: RPM = {legacyFormulas.rpm.mean.slope}·d +{" "}
-        {legacyFormulas.rpm.mean.intercept}; hood command at 100 in ={" "}
-        {legacyHood(100).toFixed(1)}. Hood values are a 25–50 servo command, not
-        a launch angle.
+        {t.f(
+          "Fits: RPM = {slope}·d + {intercept}; hood command at 100 in = {hood}. Hood values are a 25–50 servo command, not a launch angle.",
+          {
+            slope: legacyFormulas.rpm.mean.slope,
+            intercept: legacyFormulas.rpm.mean.intercept,
+            hood: legacyHood(100).toFixed(1),
+          },
+        )}
       </p>
       <p className="muted">
-        Not converted to calibration rows. The rows have no exit speed, spin, or
-        timed position. The hood launch angle, exit height, and ARTIFACT mass
-        were never measured, and the target was the DECODE GOAL, which is not
-        modeled here.
+        {t(
+          "Not converted to calibration rows. The rows have no exit speed, spin, or timed position. The hood launch angle, exit height, and ARTIFACT mass were never measured, and the target was the DECODE GOAL, which is not modeled here.",
+        )}
       </p>
     </Section>
   );

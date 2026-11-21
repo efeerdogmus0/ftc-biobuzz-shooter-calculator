@@ -6,6 +6,7 @@ import {
   dropCalibration,
   type SurfaceKind,
 } from "../physics/contactModel";
+import { useT } from "../i18n/useT";
 type NumericKey = {
   [
     K in keyof Required<BounceSettings>
@@ -19,6 +20,7 @@ export function ContactPhysics({ shot }: { shot: Shot }) {
     [rise, setRise] = useState(""),
     [surface, setSurface] = useState<Exclude<SurfaceKind, "ball">>("floor"),
     [message, setMessage] = useState("");
+  const t = useT();
   const edit = (value: Partial<BounceSettings>) =>
     s.set({
       bounceSettings: { ...settings, ...value },
@@ -37,10 +39,10 @@ export function ContactPhysics({ shot }: { shot: Shot }) {
     const value = Number(settings[key] ?? fallback);
     return (
       <label key={key}>
-        {label}
+        {t(label)}
         <output>{value.toFixed(step < 0.01 ? 3 : step < 1 ? 2 : 0)}</output>
         <input
-          aria-label={label}
+          aria-label={t(label)}
           type="range"
           min={min}
           max={max}
@@ -72,22 +74,22 @@ export function ContactPhysics({ shot }: { shot: Shot }) {
   return (
     <section className="contact-physics">
       <label>
-        Temas modeli
+        {t("Temas modeli")}
         <select
-          aria-label="Temas modeli"
+          aria-label={t("Temas modeli")}
           value={settings.contactModel ?? "rigid"}
           onChange={(e) =>
             edit({ contactModel: e.target.value as "rigid" | "hertz" })
           }
         >
-          <option value="rigid">Çoklu rijit temas · hızlı</option>
-          <option value="hertz">Hertz esnek temas · ayrıntılı</option>
+          <option value="rigid">{t("Çoklu rijit temas · hızlı")}</option>
+          <option value="hertz">{t("Hertz esnek temas · ayrıntılı")}</option>
         </select>
       </label>
       <label>
-        Topun atalet modeli
+        {t("Topun atalet modeli")}
         <select
-          aria-label="Topun atalet modeli"
+          aria-label={t("Topun atalet modeli")}
           value={settings.inertiaModel ?? "config"}
           onChange={(e) =>
             edit({
@@ -96,47 +98,51 @@ export function ContactPhysics({ shot }: { shot: Shot }) {
           }
         >
           <option value="config">
-            {settings.shapeModel === "pollen"
-              ? "POLLEN kabuğu / ölçülmüş profil"
-              : "Profildeki atalet / mevcut varsayım"}
+            {t(
+              settings.shapeModel === "pollen"
+                ? "POLLEN kabuğu / ölçülmüş profil"
+                : "Profildeki atalet / mevcut varsayım",
+            )}
           </option>
-          <option value="solid">Katı küre</option>
-          <option value="shell">İçi boş ince kabuk</option>
+          <option value="solid">{t("Katı küre")}</option>
+          <option value="shell">{t("İçi boş ince kabuk")}</option>
         </select>
       </label>
       <p>
-        {soft
-          ? "Sıkışma ve temas süresiyle normal kuvvet hesaplanır; sekme, malzeme kaybından ortaya çıkar. Tam şekil deformasyonu çözülmez."
-          : "Darbeler ve yığındaki destek kuvvetleri birlikte çözülür. Sekme hıza göre değişir; kayma, tutunma, yuvarlanma ve eksen etrafında dönüş ayrı etkiler taşır."}
+        {t(
+          soft
+            ? "Sıkışma ve temas süresiyle normal kuvvet hesaplanır; sekme, malzeme kaybından ortaya çıkar. Tam şekil deformasyonu çözülmez."
+            : "Darbeler ve yığındaki destek kuvvetleri birlikte çözülür. Sekme hıza göre değişir; kayma, tutunma, yuvarlanma ve eksen etrafında dönüş ayrı etkiler taşır.",
+        )}
       </p>
       {s.bounceBusy && (
         <div className="physics-progress" role="status">
-          {s.bounceProgress || "Sekiş hesaplanıyor…"}
+          {t(s.bounceProgress || "Sekiş hesaplanıyor…")}
         </div>
       )}
       {shot.flight.bounceError && (
         <p className="physics-warning" role="alert">
-          {shot.flight.bounceError}
+          {t(shot.flight.bounceError)}
         </p>
       )}
       {d?.warnings.map((warning, i) => (
         <p key={i} className="physics-warning">
-          {warning}
+          {t(warning)}
         </p>
       ))}
       <details open={soft}>
-        <summary>Malzeme ve yüzey özellikleri</summary>
+        <summary>{t("Malzeme ve yüzey özellikleri")}</summary>
         <div className="bounce-settings">
           {soft ? (
             <>
               <label>
-                Etkin Hertz sertliği
+                {t("Etkin Hertz sertliği")}
                 <output>
                   {(settings.contactStiffness ?? 300000).toExponential(1)}{" "}
                   N/m¹·⁵
                 </output>
                 <input
-                  aria-label="Etkin Hertz sertliği"
+                  aria-label={t("Etkin Hertz sertliği")}
                   type="range"
                   min="4.7"
                   max="6.7"
@@ -201,10 +207,10 @@ export function ContactPhysics({ shot }: { shot: Shot }) {
             ][i];
             return (
               <label key={kind}>
-                {label}
+                {t(label)}
                 <output>{v.toFixed(2)}</output>
                 <input
-                  aria-label={label}
+                  aria-label={t(label)}
                   type="range"
                   min="0"
                   max="1"
@@ -241,42 +247,42 @@ export function ContactPhysics({ shot }: { shot: Shot }) {
           )}
         </div>
         <p>
-          Katsayılar ölçülmemiş başlangıç varsayımlarıdır. Tutunma sınırı
-          aşılınca kayma sürtünmesi kullanılır; dönme direnci temas yüküne
-          bağlıdır.
+          {t(
+            "Katsayılar ölçülmemiş başlangıç varsayımlarıdır. Tutunma sınırı aşılınca kayma sürtünmesi kullanılır; dönme direnci temas yüküne bağlıdır.",
+          )}
         </p>
       </details>
       {!soft && (
         <details>
-          <summary>Düşürme ölçümüyle sekmeyi ayarla</summary>
+          <summary>{t("Düşürme ölçümüyle sekmeyi ayarla")}</summary>
           <p>
-            Aynı malzemeden düz, yatay numuneye sıfır spinle bırakılan top için:
-            e = √(sekme yüksekliği / bırakma yüksekliği). Hava etkisi ihmal
-            edilir; tek ölçüm yalnızca bu hızdaki katsayıyı belirler.
+            {t(
+              "Aynı malzemeden düz, yatay numuneye sıfır spinle bırakılan top için: e = √(sekme yüksekliği / bırakma yüksekliği). Hava etkisi ihmal edilir; tek ölçüm yalnızca bu hızdaki katsayıyı belirler.",
+            )}
           </p>
           <div className="drop-calibration">
             <select
-              aria-label="Ölçülen yüzey"
+              aria-label={t("Ölçülen yüzey")}
               value={surface}
               onChange={(e) => setSurface(e.target.value as typeof surface)}
             >
-              <option value="floor">Zemin</option>
-              <option value="cell">CELL malzemesi</option>
-              <option value="wall">Duvar malzemesi</option>
+              <option value="floor">{t("Zemin")}</option>
+              <option value="cell">{t("CELL malzemesi")}</option>
+              <option value="wall">{t("Duvar malzemesi")}</option>
             </select>
             <label>
-              Bırakma yüksekliği · mm
+              {t("Bırakma yüksekliği · mm")}
               <input
-                aria-label="Bırakma yüksekliği"
+                aria-label={t("Bırakma yüksekliği")}
                 type="number"
                 value={drop}
                 onChange={(e) => setDrop(e.target.value)}
               />
             </label>
             <label>
-              Sekme yüksekliği · mm
+              {t("Sekme yüksekliği · mm")}
               <input
-                aria-label="Sekme yüksekliği"
+                aria-label={t("Sekme yüksekliği")}
                 type="number"
                 value={rise}
                 onChange={(e) => setRise(e.target.value)}
@@ -305,31 +311,36 @@ export function ContactPhysics({ shot }: { shot: Shot }) {
                     referenceSpeed: measured.speed,
                   });
                   setMessage(
-                    `e=${measured.restitution.toFixed(3)} · ${measured.speed.toFixed(2)} m/s referansı uygulandı.`,
+                    t.f("e={e} · {speed} m/s referansı uygulandı.", {
+                      e: measured.restitution.toFixed(3),
+                      speed: measured.speed.toFixed(2),
+                    }),
                   );
                 } catch (error) {
-                  setMessage(String(error));
+                  setMessage(
+                    error instanceof Error ? t(error.message) : String(error),
+                  );
                 }
               }}
             >
-              Ölçümü uygula
+              {t("Ölçümü uygula")}
             </button>
             <p role="status">{message}</p>
           </div>
         </details>
       )}
       <details>
-        <summary>Hesap hassasiyeti ve enerji</summary>
+        <summary>{t("Hesap hassasiyeti ve enerji")}</summary>
         <div className="bounce-settings">
           {control("previewTime", "Simülasyon süresi · s", 0.5, 20, 0.5, 10)}
           {control("solverIterations", "Temas çözüm tekrarları", 4, 48, 1, 16)}
           <label>
-            En büyük temas adımı
+            {t("En büyük temas adımı")}
             <output>
               {((settings.maxContactStep ?? 0.001) * 1000).toFixed(2)} ms
             </output>
             <input
-              aria-label="En büyük temas adımı"
+              aria-label={t("En büyük temas adımı")}
               type="range"
               min="0.00005"
               max="0.002"
@@ -354,21 +365,26 @@ export function ContactPhysics({ shot }: { shot: Shot }) {
             })
           }
         >
-          Daha küçük adımla yeniden hesapla
+          {t("Daha küçük adımla yeniden hesapla")}
         </button>
         {d && (
           <>
             <div className="impact-metrics">
               <span>
-                En küçük adım<strong>{(d.minStep * 1000).toFixed(3)} ms</strong>
+                {t("En küçük adım")}
+                <strong>{(d.minStep * 1000).toFixed(3)} ms</strong>
               </span>
               <span>
-                {soft ? "En büyük sıkışma" : "En büyük sayısal geçiş"}
+                {t(soft ? "En büyük sıkışma" : "En büyük sayısal geçiş")}
                 <strong>{(d.maxOverlap * 1000).toFixed(2)} mm</strong>
               </span>
               {soft && (
-                <span title="Noktasal Hertz yaklaşımı küçük sıkışma varsayar. %15, bu uygulamanın tanı amaçlı uyarı eşiğidir; evrensel bir Hertz geçerlilik sınırı değildir. k ölçülmediği için fiziksel doğruluk iddiası yoktur.">
-                  Sıkışma / yarıçap
+                <span
+                  title={t(
+                    "Noktasal Hertz yaklaşımı küçük sıkışma varsayar. %15, bu uygulamanın tanı amaçlı uyarı eşiğidir; evrensel bir Hertz geçerlilik sınırı değildir. k ölçülmediği için fiziksel doğruluk iddiası yoktur.",
+                  )}
+                >
+                  {t("Sıkışma / yarıçap")}
                   <strong
                     className={
                       d.maxOverlap > (s.config.projectile.diameter / 2) * 0.15
@@ -381,18 +397,20 @@ export function ContactPhysics({ shot }: { shot: Shot }) {
                       (s.config.projectile.diameter / 2)
                     ).toFixed(1)}{" "}
                     %{" "}
-                    {d.maxOverlap > (s.config.projectile.diameter / 2) * 0.15
-                      ? "· uyarı eşiği (%15) aşıldı"
-                      : "· uyarı eşiği %15"}
+                    {t(
+                      d.maxOverlap > (s.config.projectile.diameter / 2) * 0.15
+                        ? "· uyarı eşiği (%15) aşıldı"
+                        : "· uyarı eşiği %15",
+                    )}
                   </strong>
                 </span>
               )}
               <span>
-                Enerji bilançosu farkı
+                {t("Enerji bilançosu farkı")}
                 <strong>{(d.energyBalanceError * 1000).toFixed(2)} mJ</strong>
               </span>
               <span>
-                {soft ? "Malzemede enerji kaybı" : "Temas işi"}
+                {t(soft ? "Malzemede enerji kaybı" : "Temas işi")}
                 <strong>
                   {(
                     (soft ? d.normalDissipationLoss : d.contactWork) * 1000
@@ -401,10 +419,10 @@ export function ContactPhysics({ shot }: { shot: Shot }) {
                 </strong>
               </span>
               <span>
-                Yığını oturtma
+                {t("Yığını oturtma")}
                 <strong>
                   {d.settlingTime.toFixed(2)} s ·{" "}
-                  {d.settled ? "durdu" : "hareket sürüyor"}
+                  {t(d.settled ? "durdu" : "hareket sürüyor")}
                 </strong>
               </span>
             </div>
@@ -412,10 +430,10 @@ export function ContactPhysics({ shot }: { shot: Shot }) {
               viewBox="0 0 600 145"
               className="bounce-chart"
               role="img"
-              aria-label="Sekiş enerji grafiği"
+              aria-label={t("Sekiş enerji grafiği")}
             >
               <text x="30" y="15">
-                Hareket · dönüş · esneme enerjisi (J)
+                {t("Hareket · dönüş · esneme enerjisi (J)")}
               </text>
               <text x="5" y="30">
                 {maxE.toFixed(2)}
@@ -452,11 +470,14 @@ export function ContactPhysics({ shot }: { shot: Shot }) {
               </text>
             </svg>
             <p>
-              Turkuaz: ilerleme · mor: topun dönüşü · sarı: esneme · pembe:
-              HIVE'ın dönüşü. Rijit modelde kuvvet, darbenin zaman adımına
-              bölünmüş ortalamasıdır; fiziksel tepe kuvveti değildir.
+              {t(
+                "Turkuaz: ilerleme · mor: topun dönüşü · sarı: esneme · pembe: HIVE'ın dönüşü. Rijit modelde kuvvet, darbenin zaman adımına bölünmüş ortalamasıdır; fiziksel tepe kuvveti değildir.",
+              )}
               {soft &&
-                " Enerji farkı, malzeme kaybının ayrı integraliyle kontrol edilir; adımı küçülterek karşılaştır."}
+                " " +
+                  t(
+                    "Enerji farkı, malzeme kaybının ayrı integraliyle kontrol edilir; adımı küçülterek karşılaştır.",
+                  )}
             </p>
           </>
         )}
@@ -465,7 +486,7 @@ export function ContactPhysics({ shot }: { shot: Shot }) {
         className="reset-physics"
         onClick={() => edit(advancedBounceDefaults)}
       >
-        Gelişmiş ayarları sıfırla
+        {t("Gelişmiş ayarları sıfırla")}
       </button>
     </section>
   );

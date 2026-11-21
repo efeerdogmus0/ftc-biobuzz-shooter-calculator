@@ -12,6 +12,8 @@ import { defaultHiveReference } from "../physics/hiveReference";
 import { placementError } from "../physics/collisionWorld";
 import { parseConfig } from "./config";
 import { parseMeasurements, type Measurement } from "../physics/analysis";
+import { parseCamera, type CameraSettings } from "../vision/limelight";
+import { parseShotLog, type LoggedShot } from "../export/shotLog";
 
 /**
  * Measurements behind a fitted profile and the physics stamp they were fitted
@@ -30,6 +32,80 @@ export interface ScenarioOrigin {
   source?: string;
   spec?: RobotSpec;
 }
+/**
+ * A place the robot shoots from, with the settings that score there. The one
+ * shared "atış noktası" every tool reads: field list, planner, export table.
+ */
+export interface ShotPoint {
+  id: string;
+  name: string;
+  /** Robot centre on the field (m) and chassis heading (rad). */
+  x: number;
+  y: number;
+  heading: number;
+  /** Main wheel speed (rad/s) and hood angle (rad, as in `shooter.hoodAngle`). */
+  omega: number;
+  hoodAngle: number;
+  /** Ball-to-HIVE-edge margin of the simulated shot (m). */
+  clearance: number;
+  source: "manual" | "coverage" | "study" | "plan";
+  /** Monte Carlo hit rate 0–1, when it was measured at this point. */
+  reliability?: number;
+}
+/** Drivetrain facts the auto planner needs; asked once in the robot setup. */
+export interface Chassis {
+  drive: "holonomic" | "tank";
+  turret: boolean;
+}
+export const MAX_SHOT_POINTS = 40;
+const finite = (v: unknown): v is number =>
+  typeof v === "number" && Number.isFinite(v);
+/** Lenient: a bad point is dropped, never a reason to reject a whole file. */
+export function parseShotPoints(value: unknown): ShotPoint[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const out: ShotPoint[] = [];
+  for (const p of value) {
+    if (!record(p)) continue;
+    const { id, name, x, y, heading, omega, hoodAngle, clearance } = p;
+    if (typeof id !== "string" || !id || id.length > 64 || seen.has(id))
+      continue;
+    if (
+      ![x, y, heading, omega, hoodAngle].every(finite) ||
+      Math.abs(x as number) > 5 ||
+      Math.abs(y as number) > 5 ||
+      (omega as number) < 0
+    )
+      continue;
+    seen.add(id);
+    out.push({
+      id,
+      name:
+        typeof name === "string" && name.trim()
+          ? name.trim().slice(0, 40)
+          : `P${out.length + 1}`,
+      x: x as number,
+      y: y as number,
+      heading: heading as number,
+      omega: omega as number,
+      hoodAngle: hoodAngle as number,
+      clearance: finite(clearance) ? clearance : 0,
+      source: ["coverage", "study", "plan"].includes(p.source as string)
+        ? (p.source as ShotPoint["source"])
+        : "manual",
+      ...(finite(p.reliability) && p.reliability >= 0 && p.reliability <= 1
+        ? { reliability: p.reliability }
+        : {}),
+    });
+    if (out.length >= MAX_SHOT_POINTS) break;
+  }
+  return out;
+}
+export function parseChassis(value: unknown): Chassis | null {
+  if (!record(value)) return null;
+  if (value.drive !== "holonomic" && value.drive !== "tank") return null;
+  return { drive: value.drive, turret: value.turret === true };
+}
 export interface ScenarioState {
   config: Config;
   bounceEnabled: boolean;
@@ -39,6 +115,14 @@ export interface ScenarioState {
   manualResidents: Vec3[];
   calibration?: StoredCalibration | null;
   origin?: ScenarioOrigin | null;
+  /** Limelight placement; vision only, never part of the physics config. */
+  camera?: CameraSettings | null;
+  /** Saved shooting spots; shared by the field list, planner and export. */
+  shotPoints?: ShotPoint[];
+  /** Drive type / turret; null until the setup asked. */
+  chassis?: Chassis | null;
+  /** Shots taken on the real robot (Robota aktar step). */
+  shotLog?: LoggedShot[];
 }
 export function parseOrigin(value: unknown): ScenarioOrigin | null {
   if (!record(value)) return null;
@@ -122,6 +206,10 @@ export function captureScenario(s: ScenarioState): Scenario {
     manualResidents: s.manualResidents,
     ...(s.calibration ? { calibration: s.calibration } : {}),
     ...(s.origin ? { origin: s.origin } : {}),
+    ...(s.camera ? { camera: s.camera } : {}),
+    ...(s.shotPoints?.length ? { shotPoints: s.shotPoints } : {}),
+    ...(s.chassis ? { chassis: s.chassis } : {}),
+    ...(s.shotLog?.length ? { shotLog: s.shotLog } : {}),
   });
 }
 function record(value: unknown): value is Record<string, unknown> {
@@ -253,7 +341,7 @@ export function parseScenario(value: unknown): Scenario {
     if (
       !record(raw) ||
       typeof raw.stamp !== "string" ||
-      !/^v1-[0-9a-f]{16}$/.test(raw.stamp)
+      !/^v[12]-[0-9a-f]{16}$/.test(raw.stamp)
     )
       throw new Error("Invalid calibration evidence.");
     calibration = {
@@ -271,6 +359,10 @@ export function parseScenario(value: unknown): Scenario {
     calibration,
     // Unknown/invalid provenance is dropped, never a reason to reject a file.
     origin: parseOrigin(value.origin),
+    camera: parseCamera(value.camera),
+    shotPoints: parseShotPoints(value.shotPoints),
+    chassis: parseChassis(value.chassis),
+    shotLog: parseShotLog(value.shotLog),
   } as unknown as ScenarioState);
   if (scenario.residentLayout === "manual") {
     if (scenario.manualResidents.length !== scenario.residentCount)
