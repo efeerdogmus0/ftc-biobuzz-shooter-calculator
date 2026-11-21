@@ -148,3 +148,8 @@ public demo shows "The auto planner is not in this build" for that step.
   ([PR #1](https://github.com/efeerdogmus0/ftc-biobuzz-shooter-calculator/pull/1),
   details in [docs/TUNA_CONTRIBUTIONS.md](docs/TUNA_CONTRIBUTIONS.md)).
 - Reference values from the ReCalc flywheel calculator.
+
+## License
+
+[MIT](LICENSE). The Probot Sim code used by the auto planner is not part of this
+repository and is not covered by this license.
