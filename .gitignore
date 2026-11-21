@@ -6,3 +6,9 @@ dist
 
 test-results
 playwright-report
+
+# Probot Sim sources (private; see scripts/sync-probot-sim.mjs)
+vendor/probot-sim/
+
+# Local agent/editor settings
+.claude/

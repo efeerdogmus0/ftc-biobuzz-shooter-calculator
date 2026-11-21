@@ -18,7 +18,9 @@
     "src",
     "vite.config.ts",
     "vitest.config.ts",
+    "probot-sim.config.ts",
     "playwright.config.ts",
     "e2e"
-  ]
+  ],
+  "exclude": ["src/auto", "vendor"]
 }

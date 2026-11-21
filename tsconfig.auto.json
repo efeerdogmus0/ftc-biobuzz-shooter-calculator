@@ -1,0 +1,17 @@
+{
+  // Type-checks the auto planner together with the private Probot Sim copy.
+  // Run only after scripts/sync-probot-sim.mjs: npm run typecheck:auto
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@probot-sim/*": ["./vendor/probot-sim/src/*"],
+      "@probot-studio/builder-core/*": [
+        "./vendor/probot-sim/vendor/builder-core/src/*"
+      ],
+      "@probot-studio/katalog/*": ["./vendor/probot-sim/vendor/katalog/*"]
+    }
+  },
+  "include": ["src", "vendor/probot-sim"],
+  "exclude": []
+}
